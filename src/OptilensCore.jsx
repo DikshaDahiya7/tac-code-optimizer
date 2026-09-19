@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 
-// AAPKI EXACT KEY YAHAN REHNE DO
-const HARDCODED_GEMINI_KEY = "AQ.Ab8RN6IvyJpgXGLIK0P7atdVmIDTTq4McTYpGMOExb9hU_P2vA";
+// GOOGLE AI STUDIO SE COPIED AIzaSy... KEY YAHAN PASTE KARO
+const HARDCODED_GEMINI_KEY = "AQ.Ab8RN6IpKpIpMYTA4fWOjbVwD6gH5So2He61ujkQjBhV_PSElA";
 
 export default function OptilensCore() {
   const [inputCode, setInputCode] = useState(`int main() {
@@ -15,6 +15,11 @@ export default function OptilensCore() {
   const [outputData, setOutputData] = useState(null);
 
   const runPipeline = async () => {
+    if (!HARDCODED_GEMINI_KEY || HARDCODED_GEMINI_KEY === "AQ.Ab8RN6IpKpIpMYTA4fWOjbVwD6gH5So2He61ujkQjBhV_PSElA") {
+      alert("Kripya valid AIzaSy... Gemini API Key paste karein!");
+      return;
+    }
+
     setLoading(true);
     try {
       const prompt = `Analyze this C++ code for Intermediate Code Generation (Phase 4 & 5 of Compiler Design):
@@ -31,15 +36,11 @@ Provide JSON output with exact keys:
 
 Return raw JSON only, no markdown formatting.`;
 
-      // Header-based authorization for new key formats
       const response = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${HARDCODED_GEMINI_KEY}`,
         {
           method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'x-goog-api-key': HARDCODED_GEMINI_KEY
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             contents: [{ parts: [{ text: prompt }] }]
           })
