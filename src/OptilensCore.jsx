@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 
 // APNI GEMINI API KEY YAHAN PASTE KARO
-const HARDCODED_GEMINI_KEY = "YOUR_GEMINI_API_KEY_HERE";
+const HARDCODED_GEMINI_KEY = "AQ.Ab8RN6IvyJpgXGLIK0P7atdVmIDTTq4McTYpGMOExb9hU_P2vA";
 
 export default function OptilensCore() {
   const [inputCode, setInputCode] = useState(`int main() {
