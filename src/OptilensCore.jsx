@@ -1,5 +1,4 @@
-import React, { useState } from 'react';
-import { Play, Code, Layers, FileCode, Cpu, CheckCircle2, Copy, Sparkles } from 'lucide-react';
+import { Play, Code, Cpu, Sparkles } from 'lucide-react';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // APNI GEMINI API KEY YAHAN PASTE KARO
