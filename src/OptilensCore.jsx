@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-// APNI GEMINI API KEY YAHAN PASTE KARO
+// AAPKI EXACT KEY YAHAN REHNE DO
 const HARDCODED_GEMINI_KEY = "AQ.Ab8RN6IvyJpgXGLIK0P7atdVmIDTTq4McTYpGMOExb9hU_P2vA";
 
 export default function OptilensCore() {
@@ -15,11 +15,6 @@ export default function OptilensCore() {
   const [outputData, setOutputData] = useState(null);
 
   const runPipeline = async () => {
-    if (!HARDCODED_GEMINI_KEY || HARDCODED_GEMINI_KEY === "AQ.Ab8RN6IvyJpgXGLIK0P7atdVmIDTTq4McTYpGMOExb9hU_P2vA") {
-      alert("Kripya code mein apni Gemini API Key paste karein!");
-      return;
-    }
-
     setLoading(true);
     try {
       const prompt = `Analyze this C++ code for Intermediate Code Generation (Phase 4 & 5 of Compiler Design):
@@ -36,11 +31,15 @@ Provide JSON output with exact keys:
 
 Return raw JSON only, no markdown formatting.`;
 
+      // Header-based authorization for new key formats
       const response = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${HARDCODED_GEMINI_KEY}`,
         {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'x-goog-api-key': HARDCODED_GEMINI_KEY
+          },
           body: JSON.stringify({
             contents: [{ parts: [{ text: prompt }] }]
           })
