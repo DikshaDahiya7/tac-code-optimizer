@@ -1,33 +1,27 @@
-import { Play, Code, Cpu, Sparkles } from 'lucide-react';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import React, { useState } from 'react';
 
 // APNI GEMINI API KEY YAHAN PASTE KARO
-const HARDCODED_GEMINI_KEY = import.meta.env.AQ.Ab8RN6IvyJpgXGLIK0P7atdVmIDTTq4McTYpGMOExb9hU_P2vA;
+const HARDCODED_GEMINI_KEY = "YOUR_GEMINI_API_KEY_HERE";
 
 export default function OptilensCore() {
   const [inputCode, setInputCode] = useState(`int main() {
     int a = 10;
     int b = 20;
     int c = a + b;
-    int d = c * 0;
-    return d;
+    return c;
 }`);
   const [activeTab, setActiveTab] = useState('raw');
   const [loading, setLoading] = useState(false);
-  const [copied, setCopied] = useState(false);
   const [outputData, setOutputData] = useState(null);
 
   const runPipeline = async () => {
-    if (!HARDCODED_GEMINI_KEY || HARDCODED_GEMINI_KEY === "YOUR_GEMINI_API_KEY_HERE") {
+    if (!HARDCODED_GEMINI_KEY || HARDCODED_GEMINI_KEY === "AQ.Ab8RN6IvyJpgXGLIK0P7atdVmIDTTq4McTYpGMOExb9hU_P2vA") {
       alert("Kripya code mein apni Gemini API Key paste karein!");
       return;
     }
 
     setLoading(true);
     try {
-      const genAI = new GoogleGenerativeAI(HARDCODED_GEMINI_KEY);
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
       const prompt = `Analyze this C++ code for Intermediate Code Generation (Phase 4 & 5 of Compiler Design):
 \`\`\`cpp
 ${inputCode}
@@ -42,8 +36,23 @@ Provide JSON output with exact keys:
 
 Return raw JSON only, no markdown formatting.`;
 
-      const result = await model.generateContent(prompt);
-      const responseText = result.response.text().replace(/```json|```/g, '').trim();
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${HARDCODED_GEMINI_KEY}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }]
+          })
+        }
+      );
+
+      const result = await response.json();
+      if (result.error) {
+        throw new Error(result.error.message);
+      }
+
+      const responseText = result.candidates[0].content.parts[0].text.replace(/```json|```/g, '').trim();
       const parsedData = JSON.parse(responseText);
       setOutputData(parsedData);
     } catch (err) {
@@ -54,46 +63,30 @@ Return raw JSON only, no markdown formatting.`;
     }
   };
 
-  const copyToClipboard = (text) => {
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-6 font-sans">
       <div className="max-w-7xl mx-auto space-y-6">
         
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-800 pb-5">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-indigo-600/20 text-indigo-400 rounded-xl border border-indigo-500/30">
-              <Cpu className="w-7 h-7" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent">
-                OptiLens TAC Visualizer
-              </h1>
-              <p className="text-xs text-slate-400">Compiler Design Phase 4 & 5: Intermediate Code & Optimization</p>
-            </div>
-          </div>
+        <div className="border-b border-slate-800 pb-5">
+          <h1 className="text-2xl font-bold text-indigo-400">
+            OptiLens TAC Visualizer
+          </h1>
+          <p className="text-xs text-slate-400">Compiler Design Phase 4 & 5: Intermediate Code & Optimization</p>
         </div>
 
         {/* Workspace */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           
           {/* Input Panel */}
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col gap-4 shadow-xl">
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col gap-4">
             <div className="flex items-center justify-between">
-              <span className="flex items-center gap-2 text-sm font-semibold text-slate-300">
-                <Code className="w-4 h-4 text-indigo-400" /> C++ Source Code
-              </span>
+              <span className="text-sm font-semibold text-slate-300">C++ Source Code</span>
               <button
                 onClick={runPipeline}
                 disabled={loading}
-                className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition duration-200 disabled:opacity-50"
+                className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition disabled:opacity-50"
               >
-                {loading ? <Sparkles className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4 fill-current" />}
                 {loading ? "Processing..." : "Run Pipeline"}
               </button>
             </div>
@@ -101,41 +94,34 @@ Return raw JSON only, no markdown formatting.`;
             <textarea
               value={inputCode}
               onChange={(e) => setInputCode(e.target.value)}
-              className="w-full h-80 bg-slate-950 border border-slate-800 rounded-lg p-4 font-mono text-sm text-cyan-300 focus:outline-none focus:border-indigo-500 resize-none shadow-inner"
-              placeholder="// Enter C++ Code here..."
+              className="w-full h-80 bg-slate-950 border border-slate-800 rounded-lg p-4 font-mono text-sm text-cyan-300 focus:outline-none resize-none"
             />
           </div>
 
           {/* Output Panel */}
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col gap-4 shadow-xl">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3 overflow-x-auto">
-              <div className="flex gap-2">
-                {['raw', 'passes', 'optimized', 'quads', 'triples'].map((tab) => (
-                  <button
-                    key={tab}
-                    onClick={() => setActiveTab(tab)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${
-                      activeTab === tab
-                        ? 'bg-indigo-600 text-white'
-                        : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                    }`}
-                  >
-                    {tab.toUpperCase()}
-                  </button>
-                ))}
-              </div>
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col gap-4">
+            <div className="flex gap-2 border-b border-slate-800 pb-3">
+              {['raw', 'passes', 'optimized', 'quads', 'triples'].map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium ${
+                    activeTab === tab ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400'
+                  }`}
+                >
+                  {tab.toUpperCase()}
+                </button>
+              ))}
             </div>
 
-            <div className="h-80 overflow-y-auto bg-slate-950 border border-slate-800 rounded-lg p-4 font-mono text-sm text-slate-300">
+            <div className="h-80 overflow-y-auto bg-slate-950 border border-slate-800 rounded-lg p-4 font-mono text-sm">
               {!outputData ? (
                 <div className="h-full flex items-center justify-center text-slate-600 text-xs">
                   Click "Run Pipeline" to generate Intermediate Code.
                 </div>
               ) : (
                 <>
-                  {activeTab === 'raw' && (
-                    <pre className="text-emerald-400">{outputData.rawTac?.join('\n')}</pre>
-                  )}
+                  {activeTab === 'raw' && <pre className="text-emerald-400">{outputData.rawTac?.join('\n')}</pre>}
                   {activeTab === 'passes' && (
                     <div className="space-y-3">
                       {outputData.optimizationPasses?.map((p, idx) => (
@@ -148,9 +134,7 @@ Return raw JSON only, no markdown formatting.`;
                       ))}
                     </div>
                   )}
-                  {activeTab === 'optimized' && (
-                    <pre className="text-cyan-400">{outputData.optimizedTac?.join('\n')}</pre>
-                  )}
+                  {activeTab === 'optimized' && <pre className="text-cyan-400">{outputData.optimizedTac?.join('\n')}</pre>}
                   {activeTab === 'quads' && (
                     <div className="space-y-1 text-xs">
                       {outputData.quadruples?.map((q, i) => (
