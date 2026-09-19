@@ -2,51 +2,78 @@ import React, { useState } from 'react';
 
 export default function OptilensCore() {
   const [sourceCode, setSourceCode] = useState(`int main() {
-    int a = 10;
-    int b = 20;
-    int c = a + b;
-    return c;
+    int x = 4 + 4;
+    int y = x * 10;
+    return y;
 }`);
 
-  const [activePreset, setActivePreset] = useState('Optimization Suite');
-  const [rightTab, setRightTab] = useState('PASSES'); // RAW | PASSES | OPTIMIZED | QUADS | TRIPLES
+  const [activePreset, setActivePreset] = useState('Folding');
+  const [rightTab, setRightTab] = useState('RAW'); 
   const [loading, setLoading] = useState(false);
 
-  // Dynamic state based on input code execution
-  const [data, setData] = useState({
-    rawTac: [
-      "t1 = 10",
-      "a = t1",
-      "t2 = 20",
-      "b = t2",
-      "t3 = a + b",
-      "c = t3",
-      "return c"
-    ],
-    passes: [
-      { passName: "Constant Folding", description: "Compute constants early", active: true },
-      { passName: "Copy Propagation", description: "Substitute temp assignments", active: true },
-      { passName: "Dead Code", description: "Remove unused statements", active: true }
-    ],
-    optimizedTac: [
-      "a = 10",
-      "b = 20",
-      "c = 30",
-      "return c"
-    ],
-    quads: [
-      { op: "=", arg1: "10", arg2: "-", result: "a" },
-      { op: "=", arg1: "20", arg2: "-", result: "b" },
-      { op: "+", arg1: "a", arg2: "b", result: "t3" },
-      { op: "=", arg1: "t3", arg2: "-", result: "c" }
-    ],
-    triples: [
-      { index: "0", op: "=", arg1: "10", arg2: "-" },
-      { index: "1", op: "=", arg1: "20", arg2: "-" },
-      { index: "2", op: "+", arg1: "(0)", arg2: "(1)" },
-      { index: "3", op: "=", arg1: "(2)", arg2: "-" }
-    ]
-  });
+  // Dynamic state based on preset selection
+  const presetData = {
+    'Folding': {
+      source: `int main() {\n    int x = 4 + 4;\n    int y = x * 10;\n    return y;\n}`,
+      rawTac: ["t1 = 4 + 4", "x = t1", "t2 = x * 10", "y = t2", "return y"],
+      optimizedTac: ["x = 8", "t2 = 8 * 10", "y = t2", "return y"],
+      passes: [
+        { passName: "Constant Folding", description: "Compute constants early", active: true },
+        { passName: "Copy Propagation", description: "Substitute temp assignments", active: false },
+        { passName: "Dead Code", description: "Remove unused statements", active: false }
+      ]
+    },
+    'Elimination': {
+      source: `int main() {\n    int a = 10;\n    int dead = 100;\n    return a;\n}`,
+      rawTac: ["t1 = 10", "a = t1", "dead = 100", "return a"],
+      optimizedTac: ["a = 10", "return a"],
+      passes: [
+        { passName: "Constant Folding", description: "Compute constants early", active: false },
+        { passName: "Copy Propagation", description: "Substitute temp assignments", active: true },
+        { passName: "Dead Code", description: "Remove unused statements", active: true }
+      ]
+    },
+    'Conditionals': {
+      source: `int main() {\n    int z = 10;\n    if (z > 5) return z;\n    return 0;\n}`,
+      rawTac: ["z = 10", "ifFalse z > 5 goto L1", "return z", "L1: return 0"],
+      optimizedTac: ["z = 10", "ifFalse z > 5 goto L1", "return z", "L1: return 0"],
+      passes: [
+        { passName: "Algebraic Simplification", description: "Remove identity ops (+0, *1)", active: true },
+        { passName: "Dead Code", description: "Remove unused statements", active: true }
+      ]
+    },
+    'Optimization Suite': {
+      source: `int main() {\n    int a = 10;\n    int b = 20;\n    int c = a + b;\n    return c;\n}`,
+      rawTac: ["t1 = 10", "a = t1", "t2 = 20", "b = t2", "t3 = a + b", "c = t3", "return c"],
+      optimizedTac: ["a = 10", "b = 20", "c = 30", "return c"],
+      passes: [
+        { passName: "Constant Folding", description: "Compute constants early", active: true },
+        { passName: "Copy Propagation", description: "Substitute temp assignments", active: true },
+        { passName: "Dead Code", description: "Remove unused statements", active: true }
+      ]
+    }
+  };
+
+  const currentData = presetData[activePreset] || presetData['Folding'];
+
+  const quadruples = [
+    { op: "=", arg1: "10", arg2: "-", result: "a" },
+    { op: "=", arg1: "20", arg2: "-", result: "b" },
+    { op: "+", arg1: "a", arg2: "b", result: "t3" },
+    { op: "=", arg1: "t3", arg2: "-", result: "c" }
+  ];
+
+  const triples = [
+    { index: "0", op: "=", arg1: "10", arg2: "-" },
+    { index: "1", op: "=", arg1: "20", arg2: "-" },
+    { index: "2", op: "+", arg1: "(0)", arg2: "(1)" },
+    { index: "3", op: "=", arg1: "(2)", arg2: "-" }
+  ];
+
+  const handlePresetChange = (presetName) => {
+    setActivePreset(presetName);
+    setSourceCode(presetData[presetName].source);
+  };
 
   const handleRunPipeline = () => {
     setLoading(true);
@@ -55,24 +82,11 @@ export default function OptilensCore() {
     }, 300);
   };
 
-  const handlePresetChange = (presetName) => {
-    setActivePreset(presetName);
-    if (presetName === 'Folding') {
-      setSourceCode(`int main() {\n    int x = 4 + 4;\n    int y = x * 10;\n    return y;\n}`);
-    } else if (presetName === 'Elimination') {
-      setSourceCode(`int main() {\n    int a = 10;\n    int dead = 100;\n    return a;\n}`);
-    } else if (presetName === 'Conditionals') {
-      setSourceCode(`int main() {\n    int z = 10;\n    if (z > 5) return z;\n    return 0;\n}`);
-    } else {
-      setSourceCode(`int main() {\n    int a = 10;\n    int b = 20;\n    int c = a + b;\n    return c;\n}`);
-    }
-  };
-
   return (
     <div className="min-h-screen bg-[#070c18] text-slate-100 p-6 font-sans">
-      <div className="max-w-[1400px] mx-auto space-y-5">
+      <div className="max-w-[1400px] mx-auto space-y-6">
         
-        {/* Top Header Bar with Title & Presets */}
+        {/* Top Header Bar with Presets */}
         <div className="flex flex-wrap items-center justify-between border-b border-slate-800/80 pb-4 gap-4">
           <div>
             <h1 className="text-xl font-bold text-indigo-400">
@@ -83,7 +97,6 @@ export default function OptilensCore() {
             </p>
           </div>
 
-          {/* Presets Toolbar */}
           <div className="flex items-center bg-[#0d1527] border border-slate-800 rounded-lg p-1 gap-1">
             <span className="text-xs text-slate-400 font-medium px-2">Presets:</span>
             {['Folding', 'Elimination', 'Conditionals', 'Optimization Suite'].map((preset) => (
@@ -102,29 +115,29 @@ export default function OptilensCore() {
           </div>
         </div>
 
-        {/* Phase 5 Optimization Passes Info Strip */}
+        {/* Phase 5 Optimization Passes Info Bar */}
         <div className="bg-[#0b1322] border border-slate-800/80 rounded-xl p-4 space-y-2">
           <div className="text-xs font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-2">
-            <span>⚙ Phase 5 Optimization Passes</span>
+            <span>⚙ PHASE 5 OPTIMIZATION PASSES</span>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            {data.passes.map((pass, i) => (
+            {currentData.passes.map((pass, i) => (
               <div key={i} className="bg-[#0f1a2e] border border-slate-800 rounded-lg p-3 flex justify-between items-start">
                 <div>
                   <h4 className="text-xs font-bold text-cyan-300">{pass.passName}</h4>
                   <p className="text-[11px] text-slate-400">{pass.description}</p>
                 </div>
-                <div className="w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_6px_#22d3ee] mt-1"></div>
+                <div className={`w-2 h-2 rounded-full mt-1 ${pass.active ? 'bg-cyan-400 shadow-[0_0_6px_#22d3ee]' : 'bg-slate-600'}`}></div>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Main 2-Column Split Screen Layout */}
+        {/* Main 2-Column Section (Editor + Tab Viewer) */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           
-          {/* Left Column: Source Code Input */}
-          <div className="bg-[#0b1322] border border-slate-800 rounded-xl p-5 flex flex-col justify-between space-y-4">
+          {/* Left Column: C++ Source Code Input */}
+          <div className="bg-[#0b1322] border border-slate-800 rounded-xl p-5 flex flex-col space-y-4">
             <div className="flex items-center justify-between border-b border-slate-800/60 pb-3">
               <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">
                 C++ Source Code
@@ -141,15 +154,13 @@ export default function OptilensCore() {
             <textarea
               value={sourceCode}
               onChange={(e) => setSourceCode(e.target.value)}
-              className="w-full h-[320px] bg-[#050a14] border border-slate-900 rounded-lg p-4 font-mono text-sm text-green-400 focus:outline-none focus:border-indigo-500/50 resize-none leading-relaxed"
+              className="w-full h-[260px] bg-[#050a14] border border-slate-900 rounded-lg p-4 font-mono text-sm text-green-400 focus:outline-none focus:border-indigo-500/50 resize-none leading-relaxed"
               spellCheck="false"
             />
           </div>
 
-          {/* Right Column: Output Viewer with Navigation Tabs */}
+          {/* Right Column: Output Tabs */}
           <div className="bg-[#0b1322] border border-slate-800 rounded-xl p-5 flex flex-col space-y-4">
-            
-            {/* Tab Switching Buttons Header */}
             <div className="flex items-center justify-between border-b border-slate-800/60 pb-3">
               <div className="flex items-center gap-1.5 bg-[#050a14] p-1 rounded-lg border border-slate-800">
                 {['RAW', 'PASSES', 'OPTIMIZED', 'QUADS', 'TRIPLES'].map((tab) => (
@@ -175,12 +186,10 @@ export default function OptilensCore() {
               </button>
             </div>
 
-            {/* Display Box */}
-            <div className="bg-[#050a14] border border-slate-900 rounded-lg p-4 font-mono text-xs min-h-[320px] overflow-y-auto">
-              
+            <div className="bg-[#050a14] border border-slate-900 rounded-lg p-4 font-mono text-xs min-h-[260px] overflow-y-auto">
               {rightTab === 'RAW' && (
                 <div className="space-y-1.5 text-green-400">
-                  {data.rawTac.map((line, idx) => (
+                  {currentData.rawTac.map((line, idx) => (
                     <div key={idx} className="flex gap-4">
                       <span className="text-slate-600 w-4 select-none">{idx + 1}</span>
                       <span>{line}</span>
@@ -192,7 +201,7 @@ export default function OptilensCore() {
               {rightTab === 'PASSES' && (
                 <div className="space-y-3">
                   <p className="text-slate-400 text-[11px]">Active optimization transformations applied:</p>
-                  {data.passes.map((p, idx) => (
+                  {currentData.passes.map((p, idx) => (
                     <div key={idx} className="border-l-2 border-indigo-500 pl-3 py-1">
                       <span className="text-indigo-300 font-bold block">{p.passName}</span>
                       <span className="text-slate-400 text-[11px]">{p.description}</span>
@@ -203,7 +212,7 @@ export default function OptilensCore() {
 
               {rightTab === 'OPTIMIZED' && (
                 <div className="space-y-1.5 text-emerald-400">
-                  {data.optimizedTac.map((line, idx) => (
+                  {currentData.optimizedTac.map((line, idx) => (
                     <div key={idx} className="flex gap-4">
                       <span className="text-slate-600 w-4 select-none">{idx + 1}</span>
                       <span>{line}</span>
@@ -220,7 +229,7 @@ export default function OptilensCore() {
                     <span>ARG2</span>
                     <span>RESULT</span>
                   </div>
-                  {data.quads.map((q, idx) => (
+                  {quadruples.map((q, idx) => (
                     <div key={idx} className="grid grid-cols-4 text-slate-300 py-0.5">
                       <span className="text-indigo-400">{q.op}</span>
                       <span>{q.arg1}</span>
@@ -239,7 +248,7 @@ export default function OptilensCore() {
                     <span>ARG1</span>
                     <span>ARG2</span>
                   </div>
-                  {data.triples.map((t, idx) => (
+                  {triples.map((t, idx) => (
                     <div key={idx} className="grid grid-cols-4 text-slate-300 py-0.5">
                       <span className="text-slate-500">({t.index})</span>
                       <span className="text-indigo-400">{t.op}</span>
@@ -249,9 +258,61 @@ export default function OptilensCore() {
                   ))}
                 </div>
               )}
-
             </div>
 
+          </div>
+
+        </div>
+
+        {/* BOTTOM SECTION: Phase 4 vs Phase 5 Side-by-Side Comparison */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-2">
+          
+          {/* Phase 4: Raw TAC Box */}
+          <div className="bg-[#0b1322] border border-slate-800/80 rounded-xl p-5 space-y-3">
+            <div className="flex items-center justify-between border-b border-slate-800/60 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-2.5 h-2.5 rounded-full bg-rose-500"></div>
+                <span className="text-xs font-bold text-rose-300 tracking-wide uppercase">
+                  Phase 4: Raw TAC (Unoptimized)
+                </span>
+              </div>
+              <span className="text-[11px] text-slate-500 font-mono">
+                {currentData.rawTac.length} Instructions
+              </span>
+            </div>
+
+            <div className="bg-[#050a14] border border-slate-900 rounded-lg p-4 font-mono text-xs space-y-2 min-h-[180px]">
+              {currentData.rawTac.map((line, idx) => (
+                <div key={idx} className="flex gap-4 items-center">
+                  <span className="text-slate-600 w-4 text-right select-none">{idx + 1}</span>
+                  <span className="text-rose-300/90 font-medium">{line}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Phase 5: Optimized TAC Box */}
+          <div className="bg-[#0b1322] border border-slate-800/80 rounded-xl p-5 space-y-3">
+            <div className="flex items-center justify-between border-b border-slate-800/60 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]"></div>
+                <span className="text-xs font-bold text-emerald-300 tracking-wide uppercase">
+                  Phase 5: Optimized TAC
+                </span>
+              </div>
+              <span className="text-[11px] text-slate-500 font-mono">
+                {currentData.optimizedTac.length} Instructions
+              </span>
+            </div>
+
+            <div className="bg-[#050a14] border border-slate-900 rounded-lg p-4 font-mono text-xs space-y-2 min-h-[180px]">
+              {currentData.optimizedTac.map((line, idx) => (
+                <div key={idx} className="flex gap-4 items-center">
+                  <span className="text-slate-600 w-4 text-right select-none">{idx + 1}</span>
+                  <span className="text-emerald-400 font-medium">{line}</span>
+                </div>
+              ))}
+            </div>
           </div>
 
         </div>
