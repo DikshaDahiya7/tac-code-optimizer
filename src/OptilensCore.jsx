@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 
 // GOOGLE AI STUDIO SE COPIED AIzaSy... KEY YAHAN PASTE KARO
-const HARDCODED_GEMINI_KEY = "AQ.Ab8RN6IpKpIpMYTA4fWOjbVwD6gH5So2He61ujkQjBhV_PSElA";
+const HARDCODED_GEMINI_KEY = "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";
 
 export default function OptilensCore() {
   const [inputCode, setInputCode] = useState(`int main() {
@@ -15,7 +15,7 @@ export default function OptilensCore() {
   const [outputData, setOutputData] = useState(null);
 
   const runPipeline = async () => {
-    if (!HARDCODED_GEMINI_KEY || HARDCODED_GEMINI_KEY === "AQ.Ab8RN6IpKpIpMYTA4fWOjbVwD6gH5So2He61ujkQjBhV_PSElA") {
+    if (!HARDCODED_GEMINI_KEY || HARDCODED_GEMINI_KEY === "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") {
       alert("Kripya valid AIzaSy... Gemini API Key paste karein!");
       return;
     }
