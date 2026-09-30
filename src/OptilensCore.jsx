@@ -37,7 +37,7 @@ export default function OptilensCore() {
   const [score, setScore] = useState(0);
   const [showModal, setShowModal] = useState(false);
 
-  // Handle Input Code Change: Reset Score & Quiz
+  // Handle Input Code Change: Reset Score & Quiz Immediately
   const handleCodeChange = (e) => {
     const newCode = e.target.value;
     setCode(newCode);
@@ -152,34 +152,34 @@ export default function OptilensCore() {
 
     const fallbackQuizList = [
       {
-        question: "What specific optimization pass resolves arithmetic expressions with literal values (e.g., 5 * 2) in this code?",
-        options: ["Dead Code Elimination", "Constant Folding", "Loop Invariant Code Motion", "Register Allocation"],
+        question: "What optimization pass evaluates static arithmetic expressions like '5 * 2' at compile time?",
+        options: ["Dead Code Elimination", "Constant Folding", "Loop Invariant Motion", "Register Allocation"],
         correctIndex: 1,
-        explanation: "Constant Folding evaluates constant expressions at compile time rather than execution time."
+        explanation: "Constant Folding evaluates constant expressions during compilation to improve runtime performance."
       },
       {
-        question: "Why is the variable 'unused' eliminated during the optimization pass of this code?",
-        options: ["Syntax Error", "Dead Code Elimination (Variable is never read/referenced)", "Type Mismatch", "Out of Scope"],
+        question: "Why is the variable 'unused' removed during code optimization?",
+        options: ["Syntax Error", "Dead Code Elimination (Variable is never referenced)", "Type Casting Fault", "Memory Overflow"],
         correctIndex: 1,
-        explanation: "Dead Code Elimination removes statements and variables that do not affect the output program state."
+        explanation: "Dead Code Elimination purges unused variable declarations that do not affect program outcome."
       },
       {
-        question: "How does the raw Three-Address Code (TAC) handle complex binary operations?",
-        options: ["Combines all operations into a single instruction", "Introduces temporary variables (e.g., t1, t2) to limit operands to at most 3", "Converts everything to assembly directly", "Deletes variables"],
+        question: "How does raw Three-Address Code (TAC) structure complex binary operations?",
+        options: ["Merges everything in one statement", "Uses temporary variables (e.g. t1, t2) to limit operands to at most 3", "Converts code directly to Assembly", "Ignores variable types"],
         correctIndex: 1,
-        explanation: "TAC breaks down complex assignments into operations with at most 3 memory addresses using temporary variables."
+        explanation: "TAC simplifies assignments by introducing temporary variables so each line has at most 3 operands."
       },
       {
-        question: "What is the primary role of Copy Propagation in Intermediate Representation?",
-        options: ["Replaces occurrences of targets with their assigned values to eliminate unnecessary assignments", "Duplicates instructions for speed", "Converts floats to integers", "Removes return statements"],
+        question: "What is the primary function of Copy Propagation in Intermediate Representation?",
+        options: ["Replaces variable references with direct assignments", "Duplicates instructions for parallelism", "Converts integer to float", "Removes return calls"],
         correctIndex: 0,
-        explanation: "Copy Propagation replaces variables with their direct assigned values (e.g., b = a) to simplify instructions."
+        explanation: "Copy Propagation substitutes target variables with assigned values directly to minimize unnecessary memory copies."
       },
       {
-        question: "What distinguishes a Quadruple IR representation from a Triple IR representation?",
-        options: ["Quadruples explicitly store the result field, whereas Triples implicitly reference instruction positions", "Triples take more memory", "Quadruples are only used for loops", "There is no difference"],
+        question: "How do Quadruple representations differ from Triple representations?",
+        options: ["Quadruples explicitly store the result field, whereas Triples implicitly reference instruction positions", "Triples consume more storage", "Quadruples are strictly for loops", "Both are identical"],
         correctIndex: 0,
-        explanation: "Quadruples store (op, arg1, arg2, result). Triples avoid storing the result explicitly by using instruction indices."
+        explanation: "Quadruples use explicit (op, arg1, arg2, result) records, while Triples use implicit positional references."
       }
     ];
 
@@ -202,7 +202,7 @@ export default function OptilensCore() {
               {
                 parts: [
                   {
-                    text: `Analyze this C++ source code and its TAC / IR breakdown:\n\n${inputCode}\n\nGenerate conceptual multiple-choice quiz questions specifically tailored to test and clarify how this exact code is processed into Three-Address Code (TAC), Quadruples/Triples, and optimized (Constant Folding, Dead Code, Copy Propagation).\n\nCRITICAL INSTRUCTIONS:\n1. Generate ONLY meaningful questions that directly test concept clarity and TAC breakdown steps for this code.\n2. Do NOT count string lengths or code lines to decide questions. Instead, create 1 question for each distinct concept/operation present in the code TAC breakdown (Minimum 5 questions, Maximum 10 questions).\n3. All questions and explanations MUST BE IN ENGLISH ONLY.\n4. Return ONLY valid JSON matching this format:\n{\n  "quiz": [\n    {\n      "question": "English question testing TAC breakdown/concept",\n      "options": ["Option A", "Option B", "Option C", "Option D"],\n      "correctIndex": 0,\n      "explanation": "Clear explanation of the concept."\n    }\n  ]\n}`
+                    text: `Analyze this C++ source code and its TAC breakdown:\n\n${inputCode}\n\nGenerate conceptual multiple-choice quiz questions specifically tailored to test and clarify how this exact code is processed into Three-Address Code (TAC), Quadruples/Triples, and optimized (Constant Folding, Dead Code, Copy Propagation).\n\nCRITICAL REQUIREMENTS:\n1. Generate ONLY meaningful questions that directly test concept clarity and TAC breakdown steps for this code.\n2. Do NOT count code lines to decide questions. Instead, create 1 question for each distinct concept/operation present in the code TAC breakdown (Minimum 5 questions, Maximum 10 questions).\n3. All questions, options, and explanations MUST BE IN ENGLISH ONLY.\n4. Return ONLY valid JSON matching this format:\n{\n  "quiz": [\n    {\n      "question": "English question testing TAC breakdown/concept",\n      "options": ["Option A", "Option B", "Option C", "Option D"],\n      "correctIndex": 0,\n      "explanation": "Clear explanation of the concept."\n    }\n  ]\n}`
                   }
                 ]
               }
