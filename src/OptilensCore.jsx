@@ -9,7 +9,7 @@ export default function OptilensCore() {
   const [loadingAi, setLoadingAi] = useState(false);
 
   // Hidden API Key (Fetched from Vercel Environment or Fallback)
-  const GEMINI_API_KEY = AQ.Ab8RN6JsC6g1p4PGu5LMuXO9x739d6Dxh7yyRi8ghj3y5fNR3w || "PASTE_YOUR_GEMINI_API_KEY_HERE";
+  const GEMINI_API_KEY = process.env.TAC_KEY || "AQ.Ab8RN6JsC6g1p4PGu5LMuXO9x739d6Dxh7yyRi8ghj3y5fNR3w";
 
   const [compiledData, setCompiledData] = useState({
     rawTac: [],
