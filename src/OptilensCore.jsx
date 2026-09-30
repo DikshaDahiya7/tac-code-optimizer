@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Play, Zap, Eye, Sparkles, RefreshCw, Code2, Trophy, CheckCircle, HelpCircle } from 'lucide-react';
+import { Play, Zap, Eye, Sparkles, RefreshCw, Code2, Trophy, CheckCircle, HelpCircle, Star, Award, X } from 'lucide-react';
 
 const GEMINI_API_KEY =
   (typeof process !== 'undefined' && process.env && process.env.REACT_APP_GEMINI_API_KEY) ||
@@ -28,14 +28,74 @@ export default function OptilensCore() {
   const [triples, setTriples] = useState([]);
   const [metrics, setMetrics] = useState({ rawCount: 0, optCount: 0, deadCount: 0 });
 
-  // 🎮 Integrated AI Quiz Challenge States (Based on User Input Code)
-  const [quiz, setQuiz] = useState(null);
+  // 🎮 Integrated AI 5-Question Quiz Challenge States
+  const [quizQuestions, setQuizQuestions] = useState([]);
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [quizLoading, setQuizLoading] = useState(false);
   const [selectedAnswer, setSelectedAnswer] = useState(null);
   const [quizSubmitted, setQuizSubmitted] = useState(false);
   const [score, setScore] = useState(0);
+  const [correctAnswersCount, setCorrectAnswersCount] = useState(0);
+  const [showSummaryModal, setShowSummaryModal] = useState(false);
 
-  // Dynamic Compiler Analyzer for ANY C++ Code
+  const getFallbackQuizQuestions = (inputCode) => [
+    {
+      question: "Which primary optimization pass can be applied to constant expressions in this C++ snippet?",
+      options: [
+        "Dead Code Elimination",
+        "Constant Folding",
+        "Loop Unrolling",
+        "Register Allocation"
+      ],
+      correctIndex: 1,
+      explanation: "Constant Folding evaluates constant expressions (e.g., 5 * 2) at compile time instead of execution time."
+    },
+    {
+      question: "What happens to unreferenced or dead variables during compiler optimization pass?",
+      options: [
+        "Inlined into main loop",
+        "Retained as global symbols",
+        "Removed via Dead Code Elimination",
+        "Converted to temporary pointers"
+      ],
+      correctIndex: 2,
+      explanation: "Variables that are assigned but never used (like 'unused = 100') are eliminated to optimize space and execution time."
+    },
+    {
+      question: "How does Copy Propagation optimize code instructions in Intermediate Representation?",
+      options: [
+        "Replaces variable occurrences with their assigned values/variables",
+        "Duplicates code lines for faster parallel execution",
+        "Moves variable declarations to top of function scope",
+        "Translates high-level operations into assembly macros"
+      ],
+      correctIndex: 0,
+      explanation: "Copy Propagation replaces occurrences of targets of direct assignments with their source values."
+    },
+    {
+      question: "In Three-Address Code (TAC), how many operands are allowed on the right-hand side of an assignment at maximum?",
+      options: [
+        "Maximum 1 operand",
+        "Maximum 2 operands",
+        "Unlimited operands",
+        "At least 4 operands"
+      ],
+      correctIndex: 1,
+      explanation: "Standard Three-Address Code instructions have at most two operands on the right-hand side."
+    },
+    {
+      question: "What is the primary objective of reducing instruction count in TAC optimization?",
+      options: [
+        "Increase binary executable size",
+        "Reduce memory overhead and CPU cycle consumption",
+        "Force compile-time memory leaks",
+        "Disable register usage"
+      ],
+      correctIndex: 1,
+      explanation: "Fewer TAC instructions lead to generated assembly code that executes faster and uses fewer CPU instructions."
+    }
+  ];
+
   const processCode = (inputCode) => {
     const lines = inputCode.split('\n');
     let raw = [];
@@ -133,27 +193,19 @@ export default function OptilensCore() {
     processCode(code);
   }, [code]);
 
-  // Generate Quiz specifically from INPUT CODE
   const fetchQuizForCurrentCode = async (inputCode) => {
     setQuizLoading(true);
     setSelectedAnswer(null);
     setQuizSubmitted(false);
+    setCurrentQuestionIndex(0);
+    setCorrectAnswersCount(0);
+    setShowSummaryModal(false);
 
-    const fallbackQuiz = {
-      question: "Is specific C++ input code mein primary optimization kya perform ho sakti hai?",
-      options: [
-        "Dead Code Elimination (unused variables remove honge)",
-        "Constant Folding (5 * 2 pre-calculate hoga)",
-        "Dono Constant Folding aur Dead Code Elimination",
-        "Koi optimization possible nahi hai"
-      ],
-      correctIndex: 2,
-      explanation: "Aapke input code mein '5 * 2' Constant Folding se compute hoga aur 'unused' variable Dead Code Elimination se hategai!"
-    };
+    const fallbackQuestions = getFallbackQuizQuestions(inputCode);
 
     if (!GEMINI_API_KEY) {
       setTimeout(() => {
-        setQuiz(fallbackQuiz);
+        setQuizQuestions(fallbackQuestions);
         setQuizLoading(false);
       }, 500);
       return;
@@ -170,7 +222,7 @@ export default function OptilensCore() {
               {
                 parts: [
                   {
-                    text: `Based EXACTLY on this C++ code provided by the user:\n\n${inputCode}\n\nGenerate 1 multiple choice quiz question testing TAC optimization (e.g. Constant Folding, Dead Code, Instruction Reduction). Return strictly valid JSON format matching this without markdown code fences:\n{\n  "question": "Question text about the specific user code above",\n  "options": ["Option 0", "Option 1", "Option 2", "Option 3"],\n  "correctIndex": 0,\n  "explanation": "Detailed explanation based on user code."\n}`
+                    text: `Based EXACTLY on this C++ code provided by the user:\n\n${inputCode}\n\nGenerate exactly 5 multiple choice quiz questions testing compiler intermediate representation and TAC optimization concepts (e.g. Constant Folding, Dead Code Elimination, Copy Propagation, Instruction Reduction). Provide all text STRICTLY in clean professional English. Return strictly valid JSON format matching this schema without markdown code fences:\n[\n  {\n    "question": "Question text in English based on the C++ code",\n    "options": ["Option A", "Option B", "Option C", "Option D"],\n    "correctIndex": 0,\n    "explanation": "Detailed explanation in English."\n  }\n]`
                   }
                 ]
               }
@@ -183,12 +235,17 @@ export default function OptilensCore() {
       const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
       if (rawText) {
         const cleanedText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
-        setQuiz(JSON.parse(cleanedText));
+        const parsed = JSON.parse(cleanedText);
+        if (Array.isArray(parsed) && parsed.length >= 5) {
+          setQuizQuestions(parsed.slice(0, 5));
+        } else {
+          setQuizQuestions(fallbackQuestions);
+        }
       } else {
-        setQuiz(fallbackQuiz);
+        setQuizQuestions(fallbackQuestions);
       }
     } catch (err) {
-      setQuiz(fallbackQuiz);
+      setQuizQuestions(fallbackQuestions);
     } finally {
       setQuizLoading(false);
     }
@@ -233,7 +290,7 @@ export default function OptilensCore() {
               {
                 parts: [
                   {
-                    text: `Analyze this dynamic C++ source code and its IR/TAC representation. Explain Constant Folding, Copy Propagation, and Dead Code Elimination step by step:\n\n${code}`
+                    text: `Analyze this dynamic C++ source code and its IR/TAC representation in professional English. Explain Constant Folding, Copy Propagation, and Dead Code Elimination step by step:\n\n${code}`
                   }
                 ]
               }
@@ -256,18 +313,40 @@ export default function OptilensCore() {
     }
   };
 
+  const currentQuiz = quizQuestions[currentQuestionIndex];
+
   const handleQuizSubmit = () => {
-    if (selectedAnswer === null) return;
+    if (selectedAnswer === null || !currentQuiz) return;
     setQuizSubmitted(true);
-    if (selectedAnswer === quiz.correctIndex) {
+    
+    if (selectedAnswer === currentQuiz.correctIndex) {
       setScore((prev) => prev + 10);
+      setCorrectAnswersCount((prev) => prev + 1);
     }
   };
 
+  const handleNextQuestion = () => {
+    if (currentQuestionIndex < quizQuestions.length - 1) {
+      setCurrentQuestionIndex((prev) => prev + 1);
+      setSelectedAnswer(null);
+      setQuizSubmitted(false);
+    } else {
+      setShowSummaryModal(true);
+    }
+  };
+
+  const calculateRating = (correctCount) => {
+    if (correctCount === 5) return 5;
+    if (correctCount === 4) return 4;
+    if (correctCount === 3) return 3;
+    if (correctCount === 2) return 2;
+    return 1;
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-sky-50 to-blue-100 text-slate-800 font-sans p-4 md:p-8">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-sky-50 to-blue-100 text-slate-800 font-sans p-4 md:p-8 relative">
       <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
+        {}
         <header className="bg-white/90 border border-sky-200/80 rounded-2xl p-5 shadow-sm backdrop-blur-md flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div className="flex items-center gap-4">
             <div className="p-3 bg-sky-500 text-white rounded-xl shadow-md shadow-sky-200">
@@ -293,7 +372,7 @@ export default function OptilensCore() {
           </div>
         </header>
 
-        {/* Main Grid */}
+        {}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Left Column: Code Input */}
           <div className="bg-white/90 border border-sky-200/80 rounded-2xl p-6 shadow-sm flex flex-col">
@@ -460,7 +539,7 @@ export default function OptilensCore() {
           </div>
         </div>
 
-        {/* Integrated AI Section: Explanation + In-Context Code Quiz */}
+        {}
         <div className="bg-white/90 border border-sky-200/80 rounded-2xl p-6 shadow-sm space-y-6">
           {/* Part 1: Smart Logic Trace */}
           <div>
@@ -487,27 +566,34 @@ export default function OptilensCore() {
             </div>
           </div>
 
-          {/* Part 2: Dynamic Code Quiz Embedded in the Same AI Interface */}
+          {/* Part 2: 5-Question Dynamic Code Quiz Embedded in English */}
           <div className="border-t border-sky-200/80 pt-5">
-            <h2 className="text-xs font-bold uppercase tracking-wider text-amber-700 flex items-center gap-2 mb-3">
-              <Trophy className="w-4 h-4 text-amber-500" /> AI Interactive Quiz (Based on Input Code Above)
-            </h2>
+            <div className="flex justify-between items-center mb-3">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-amber-700 flex items-center gap-2">
+                <Trophy className="w-4 h-4 text-amber-500" /> AI Interactive Quiz (Based on Input C++ Code)
+              </h2>
+              {quizQuestions.length > 0 && (
+                <span className="text-xs bg-amber-100 border border-amber-300 text-amber-900 px-2.5 py-1 rounded-full font-bold">
+                  Question {currentQuestionIndex + 1} of {quizQuestions.length}
+                </span>
+              )}
+            </div>
 
             <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 text-slate-200">
               {quizLoading ? (
-                <div className="flex items-center justify-center py-6 gap-2 text-sky-400 text-xs font-medium">
-                  <RefreshCw className="w-4 h-4 animate-spin" /> Generating quiz question based on your C++ code...
+                <div className="flex items-center justify-center py-8 gap-2 text-sky-400 text-xs font-medium">
+                  <RefreshCw className="w-4 h-4 animate-spin" /> Generating 5 English quiz questions based on your C++ code...
                 </div>
-              ) : quiz ? (
-                <div className="space-y-3">
-                  <p className="text-sm font-semibold text-sky-300">{quiz.question}</p>
+              ) : currentQuiz ? (
+                <div className="space-y-4">
+                  <p className="text-sm font-semibold text-sky-300">{currentQuiz.question}</p>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 my-3">
-                    {quiz.options.map((opt, idx) => {
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 my-3">
+                    {currentQuiz.options.map((opt, idx) => {
                       let optionStyle = 'bg-slate-800 border-slate-700 text-slate-300 hover:border-sky-400';
 
                       if (quizSubmitted) {
-                        if (idx === quiz.correctIndex) {
+                        if (idx === currentQuiz.correctIndex) {
                           optionStyle = 'bg-emerald-950 border-emerald-500 text-emerald-200';
                         } else if (idx === selectedAnswer) {
                           optionStyle = 'bg-rose-950 border-rose-500 text-rose-200';
@@ -533,42 +619,114 @@ export default function OptilensCore() {
                     <button
                       onClick={handleQuizSubmit}
                       disabled={selectedAnswer === null}
-                      className="py-2 px-6 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-lg text-xs transition-all disabled:opacity-40"
+                      className="py-2.5 px-6 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-lg text-xs transition-all disabled:opacity-40"
                     >
-                      SUBMIT QUIZ ANSWER
+                      SUBMIT ANSWER
                     </button>
                   ) : (
-                    <div
-                      className={`p-3 rounded-lg text-xs border ${
-                        selectedAnswer === quiz.correctIndex
-                          ? 'bg-emerald-950/80 border-emerald-600 text-emerald-200'
-                          : 'bg-rose-950/80 border-rose-600 text-rose-200'
-                      }`}
-                    >
-                      <p className="font-bold mb-1 flex items-center gap-1">
-                        {selectedAnswer === quiz.correctIndex ? (
-                          <>
-                            <CheckCircle className="w-4 h-4 text-emerald-400" /> Sahi Jawab! (+10 Points)
-                          </>
-                        ) : (
-                          <>
-                            <HelpCircle className="w-4 h-4 text-rose-400" /> Galat Jawab
-                          </>
-                        )}
-                      </p>
-                      <p className="text-slate-300 mt-1">{quiz.explanation}</p>
+                    <div className="space-y-3">
+                      <div
+                        className={`p-3 rounded-lg text-xs border ${
+                          selectedAnswer === currentQuiz.correctIndex
+                            ? 'bg-emerald-950/80 border-emerald-600 text-emerald-200'
+                            : 'bg-rose-950/80 border-rose-600 text-rose-200'
+                        }`}
+                      >
+                        <p className="font-bold mb-1 flex items-center gap-1">
+                          {selectedAnswer === currentQuiz.correctIndex ? (
+                            <>
+                              <CheckCircle className="w-4 h-4 text-emerald-400" /> Correct Answer! (+10 Points)
+                            </>
+                          ) : (
+                            <>
+                              <HelpCircle className="w-4 h-4 text-rose-400" /> Incorrect Answer
+                            </>
+                          )}
+                        </p>
+                        <p className="text-slate-300 mt-1">{currentQuiz.explanation}</p>
+                      </div>
+
+                      <button
+                        onClick={handleNextQuestion}
+                        className="py-2.5 px-6 bg-sky-500 hover:bg-sky-600 text-white font-bold rounded-lg text-xs transition-all flex items-center gap-2"
+                      >
+                        {currentQuestionIndex < quizQuestions.length - 1 ? 'NEXT QUESTION →' : 'VIEW FINAL SCORE & RATING 🏆'}
+                      </button>
                     </div>
                   )}
                 </div>
               ) : (
                 <div className="text-xs text-slate-400">
-                  Code run karne ke baad yahan usi code par based quiz question aayega.
+                  Run the code pipeline to generate a 5-question AI quiz tailored to your C++ input code.
                 </div>
               )}
             </div>
           </div>
         </div>
       </div>
+
+      {}
+      {showSummaryModal && (
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white border border-sky-200 rounded-3xl p-6 md:p-8 max-w-md w-full shadow-2xl relative text-center animate-in fade-in zoom-in duration-200">
+            <button
+              onClick={() => setShowSummaryModal(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-1 rounded-full hover:bg-slate-100"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {/* Glowing Trophy Header */}
+            <div className="mx-auto w-20 h-20 bg-gradient-to-tr from-amber-400 to-yellow-300 rounded-full flex items-center justify-center shadow-lg shadow-amber-200 mb-4 animate-bounce">
+              <Trophy className="w-10 h-10 text-amber-950" />
+            </div>
+
+            <h3 className="text-2xl font-extrabold text-slate-900 tracking-tight">Quiz Completed!</h3>
+            <p className="text-xs text-slate-500 font-medium mt-1">Optimization Assessment Report</p>
+
+            {/* Score Display */}
+            <div className="my-5 p-4 bg-sky-50 border border-sky-200 rounded-2xl">
+              <p className="text-xs uppercase font-bold text-sky-800">Your Accuracy</p>
+              <p className="text-3xl font-black text-sky-950 mt-1">
+                {correctAnswersCount} / {quizQuestions.length} Correct
+              </p>
+              <p className="text-xs font-semibold text-amber-700 mt-1">+ {correctAnswersCount * 10} Total Points Earned</p>
+            </div>
+
+            {/* 1 to 5 Star Rating */}
+            <div className="mb-6">
+              <p className="text-xs font-bold uppercase text-slate-600 mb-2">Performance Rating</p>
+              <div className="flex justify-center items-center gap-1.5">
+                {[1, 2, 3, 4, 5].map((starIndex) => {
+                  const rating = calculateRating(correctAnswersCount);
+                  const isFilled = starIndex <= rating;
+                  return (
+                    <Star
+                      key={starIndex}
+                      className={`w-8 h-8 transition-all ${
+                        isFilled ? 'text-amber-400 fill-amber-400 drop-shadow-md' : 'text-slate-200 fill-slate-100'
+                      }`}
+                    />
+                  );
+                })}
+              </div>
+              <p className="text-xs font-bold text-slate-700 mt-2">
+                {calculateRating(correctAnswersCount)} out of 5 Stars
+              </p>
+            </div>
+
+            <button
+              onClick={() => {
+                setShowSummaryModal(false);
+                fetchQuizForCurrentCode(code);
+              }}
+              className="w-full py-3 bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white font-bold rounded-xl shadow-md shadow-sky-200 transition-all text-sm flex items-center justify-center gap-2"
+            >
+              <RefreshCw className="w-4 h-4" /> RETAKE QUIZ FOR THIS CODE
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
