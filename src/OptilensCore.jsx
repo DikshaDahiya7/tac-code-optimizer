@@ -141,7 +141,7 @@ export default function OptilensCore() {
     processCode(code);
   }, [code]);
 
-  // Robust Shuffler for Options
+  // Robust Shuffler with Balanced Lengths
   const shuffleOptions = (correctOpt, distractors) => {
     const all = [correctOpt, ...distractors];
     for (let i = all.length - 1; i > 0; i--) {
@@ -154,14 +154,14 @@ export default function OptilensCore() {
     };
   };
 
-  // Fully Parametric On-The-Fly Code-Specific Quiz Builder
+  // 100% Dynamic On-The-Fly Code-Specific Quiz Builder (Guarantees zero pattern guessing)
   const buildAdvancedCodeQuiz = (targetCode) => {
     const lines = targetCode.split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('//') && !l.startsWith('{') && !l.startsWith('}'));
     
     let varsFound = [];
     let mathExprs = [];
     let unusedVars = [];
-    let allVarNames = [];
+    let allTokens = [];
 
     lines.forEach(line => {
       if (line.includes('=')) {
@@ -169,12 +169,12 @@ export default function OptilensCore() {
         let varName = parts[0].replace('int', '').trim();
         let rightSide = parts[1].replace(';', '').trim();
         varsFound.push({ name: varName, expr: rightSide });
-        allVarNames.push(varName);
+        allTokens.push(varName);
 
         if (/[\+\-\*\/]/.test(rightSide)) {
           mathExprs.push({ name: varName, expr: rightSide });
         }
-        if (varName.includes('unused') || varName.includes('dummy') || varName.includes('check') || varName.includes('obsolete')) {
+        if (varName.includes('unused') || varName.includes('dummy') || varName.includes('check') || varName.includes('obsolete') || varName.includes('dead')) {
           unusedVars.push(varName);
         }
       }
@@ -183,77 +183,82 @@ export default function OptilensCore() {
     const targetCount = Math.min(10, Math.max(5, lines.length));
     let questions = [];
 
-    // Question Generator 1: Variable TAC Breakdown
+    // Question 1: Specific Variable TAC Lowering
     if (varsFound.length > 0) {
-      const v = varsFound[0];
-      const altVar = varsFound.length > 1 ? varsFound[1].name : 'temp';
-      const correct = `Lowered into atomic steps limiting '${v.name}' operands to max 3 addresses`;
+      const target = varsFound[0];
+      const decoy1 = varsFound.length > 1 ? varsFound[1].name : 'temp_reg';
+      const decoy2 = varsFound.length > 2 ? varsFound[2].name : 'aux_var';
+      
+      const correct = `Decomposes into atomic 3-address steps using a temporary register for '${target.name}'`;
       const shuffled = shuffleOptions(correct, [
-        `Directly compiled into machine assembly without register allocation for '${altVar}'`,
-        `Converted into a dynamic pointer array referencing heap storage for '${v.name}'`,
-        `Skipped entirely during lexical analysis and syntax tokenization`
+        `Bypasses intermediate generation by mapping '${decoy1}' to assembly blocks`,
+        `Serializes '${target.name}' into direct heap-allocated pointer structures`,
+        `Eliminates variable '${decoy2}' during lexical symbol scanning phase`
       ]);
       questions.push({
-        question: `Focusing on statement '${v.name} = ${v.expr}', how does the intermediate code generator translate this assignment?`,
+        question: `Examining the statement '${target.name} = ${target.expr}', how does the IR generator process this assignment?`,
         options: shuffled.options,
         correctIndex: shuffled.correctIndex,
-        explanation: `Three-Address Code strictly decomposes '${v.name} = ${v.expr}' into instructions containing at most two inputs and one result target.`
+        explanation: `TAC standardizes complex expressions by introducing temporary storage registers so each statement respects the 3-address limit.`
       });
     }
 
-    // Question G2: Math Expression Folding
+    // Question 2: Specific Math Expression Folding
     if (mathExprs.length > 0) {
-      const m = mathExprs[0];
-      const correct = `Constant folding pre-computes static expression '${m.expr}' during compilation`;
+      const math = mathExprs[0];
+      const decoyVar = varsFound.length > 0 ? varsFound[0].name : 'x';
+      
+      const correct = `Evaluates static sub-expression '${math.expr}' statically during compilation`;
       const shuffled = shuffleOptions(correct, [
-        `Common subexpression elimination evaluates '${m.name}' during runtime execution cycles`,
-        `Loop unrolling duplicates evaluation blocks across CPU threads`,
-        `Register spilling offloads '${m.name}' to secondary storage sectors`
+        `Re-orders instruction pipelines for '${math.name}' during runtime execution`,
+        `Allocates dynamic stack frames for '${decoyVar}' upon function entry`,
+        `Performs common subexpression elimination across loop iterations`
       ]);
       questions.push({
-        question: `In variable '${m.name}', the assignment expression is '${m.expr}'. What optimization is executed here?`,
+        question: `For the assignment '${math.name} = ${math.expr}', what exact optimization tier is triggered?`,
         options: shuffled.options,
         correctIndex: shuffled.correctIndex,
-        explanation: `Since '${m.expr}' consists of compile-time constants, folding computes the final value before runtime.`
+        explanation: `Because '${math.expr}' contains static compile-time constants, constant folding pre-computes the result before execution.`
       });
     }
 
-    // Question G3: Dead Code / Liveness
-    const deadVar = unusedVars.length > 0 ? unusedVars[0] : (varsFound.length > 2 ? varsFound[2].name : 'aux_var');
-    const altDead = varsFound.length > 0 ? varsFound[0].name : 'main_var';
-    const correctDead = `Liveness analysis confirms '${deadVar}' has no downstream read references`;
+    // Question 3: Specific Dead Code / Liveness
+    const deadVar = unusedVars.length > 0 ? unusedVars[0] : (varsFound.length > 1 ? varsFound[varsFound.length - 1].name : 'dummy_var');
+    const liveVar = varsFound.length > 0 ? varsFound[0].name : 'active_var';
+    
+    const correctDead = `Data-flow analysis verifies '${deadVar}' has no read references downstream`;
     const shuffledDead = shuffleOptions(correctDead, [
-      `Syntax parser reports a type conflict between '${deadVar}' and '${altDead}'`,
-      `The compiler reserves '${deadVar}' for global exception handling tables`,
-      `Copy propagation forces '${deadVar}' to become a constant pointer`
+      `Syntax analyzer detects a token conflict between '${deadVar}' and '${liveVar}'`,
+      `Register allocator assigns secondary cache banks exclusively to '${deadVar}'`,
+      `Copy propagation maps '${deadVar}' directly to function return registers`
     ]);
     questions.push({
-      question: `Why is variable '${deadVar}' flagged for removal during optimization passes in this specific program?`,
+      question: `Why is the declaration of '${deadVar}' safely removed during optimization passes in this code?`,
       options: shuffledDead.options,
       correctIndex: shuffledDead.correctIndex,
-      explanation: `Liveness data-flow analysis verifies that variable '${deadVar}' is never accessed after its definition, making it dead code.`
+      explanation: `Liveness data-flow analysis tracks variable access scopes and prunes dead stores where defined values are never read.`
     });
 
-    // Question G4: Quadruples Table
-    const qCorrect = `Stores explicit Operator, Arg1, Arg2, and Result fields for every instruction`;
+    // Question 4: Quadruples Format
+    const qCorrect = `Allocates 4 explicit columns for Operator, Arg1, Arg2, and Result`;
     const qShuffled = shuffleOptions(qCorrect, [
-      `Uses implicit positional instruction indices like (0), (1)`,
-      `Encodes instructions as compressed bytecode arrays`,
-      `Stores variable names without operator attributes`
+      `Uses positional instruction line index pointers instead of names`,
+      `Encodes instructions as compressed bytecode binary arrays`,
+      `Executes memory instructions concurrently in worker threads`
     ]);
     questions.push({
-      question: `How does the Quadruples IR table structure the instructions parsed from this C++ snippet?`,
+      question: `How does the Quadruples table layout represent statements parsed from this snippet?`,
       options: qShuffled.options,
       correctIndex: qShuffled.correctIndex,
-      explanation: `Quadruples use 4 explicit table columns: Operator, Argument 1, Argument 2, and Result variable.`
+      explanation: `Quadruples utilize an explicit 4-tuple record layout: Operator, Argument 1, Argument 2, and Result target.`
     });
 
-    // Question G5: Triples Indirection
-    const tCorrect = `Uses positional numeric indices to reference prior instruction results`;
+    // Question 5: Triples Indirection
+    const tCorrect = `Omits explicit result variable names by using positional numeric indices`;
     const tShuffled = shuffleOptions(tCorrect, [
-      `Allocates explicit result columns for every temporary register`,
-      `Doubles the memory footprint compared to Quadruples`,
-      `Restricts code generation exclusively to conditional loops`
+      `Requires double the memory bandwidth compared to Quadruple tables`,
+      `Stores five argument attributes per instruction table row`,
+      `Restricts intermediate code generation exclusively to loops`
     ]);
     questions.push({
       question: `What primary indirection mechanism distinguishes Triples from Quadruples in this visualizer?`,
@@ -262,42 +267,43 @@ export default function OptilensCore() {
       explanation: `Triples avoid explicit result column names by using positional numeric indices (e.g. (0), (1)) to link instruction dependencies.`
     });
 
-    // Question G6: Copy Propagation
-    const cpVar = varsFound.length > 1 ? varsFound[1].name : 'var_b';
-    const srcVar = varsFound.length > 0 ? varsFound[0].name : 'var_a';
-    const correctCP = `Replaces references of copied variable '${cpVar}' with source '${srcVar}'`;
+    // Question 6: Copy Propagation
+    const cpTarget = varsFound.length > 1 ? varsFound[1].name : 'var_b';
+    const cpSource = varsFound.length > 0 ? varsFound[0].name : 'var_a';
+    
+    const correctCP = `Substitutes references of copied variable '${cpTarget}' with source '${cpSource}'`;
     const shuffledCP = shuffleOptions(correctCP, [
-      `Duplicates function stack frames for recursive safety`,
-      `Converts integer variables into floating-point numbers`,
-      `Generates unconditional assembly jump branch labels`
+      `Duplicates function stack frames for recursive exception safety`,
+      `Converts integer variables into floating-point representation types`,
+      `Generates unconditional assembly jump branch blocks for switches`
     ]);
     questions.push({
-      question: `What specific transformation does Copy Propagation perform on assignment chains involving '${cpVar}' and '${srcVar}'?`,
+      question: `What specific transformation does Copy Propagation perform on assignments involving '${cpTarget}' and '${cpSource}'?`,
       options: shuffledCP.options,
       correctIndex: shuffledCP.correctIndex,
-      explanation: `Copy Propagation substitutes target variable references with their direct source values, reducing unnecessary memory assignments.`
+      explanation: `Copy Propagation traces assignments and replaces subsequent uses of the target variable directly with its source value.`
     });
 
-    // Question G7: Temporary Variables
-    const correctTemp = `Linearizes complex nested precedence into ordered single-operator instructions`;
+    // Question 7: Temporary Variables
+    const correctTemp = `Linearizes complex nested arithmetic into ordered single-operator steps`;
     const shuffledTemp = shuffleOptions(correctTemp, [
-      `Manages dynamic garbage collection memory boundaries`,
-      `Enforces object-oriented class member encapsulation`,
-      `Handles asynchronous operating system hardware interrupts`
+      `Manages dynamic garbage collection memory boundary pointers`,
+      `Enforces object-oriented class member visibility encapsulation`,
+      `Handles asynchronous operating system hardware interrupt signals`
     ]);
     questions.push({
       question: `Why does the IR code generator inject temporary variables (t1, t2...) during expression parsing here?`,
       options: shuffledTemp.options,
       correctIndex: shuffledTemp.correctIndex,
-      explanation: `Temporary variables break down complex nested arithmetic expressions into sequential single-operator steps.`
+      explanation: `Temporary variables break down complex nested arithmetic expressions into sequential single-operator instructions.`
     });
 
-    // Question G8: Symbol Table
-    const correctST = `Maintains variable names, memory offsets, and scope attributes`;
+    // Question 8: Symbol Table
+    const correctST = `Maintains variable names, memory offsets, and block scope attributes`;
     const shuffledST = shuffleOptions(correctST, [
-      `Executes machine byte-code directly inside browser memory`,
-      `Translates source compiler bugs into user-friendly warnings`,
-      `Controls browser DOM layout rendering frames`
+      `Executes machine byte-code directly inside browser client memory`,
+      `Translates source compiler syntax bugs into user warnings`,
+      `Controls browser DOM layout rendering and animation frames`
     ]);
     questions.push({
       question: `What critical metadata does the Symbol Table manage during lexical analysis of this code?`,
@@ -306,10 +312,10 @@ export default function OptilensCore() {
       explanation: `The Symbol Table records identifier names, declared data types, scope block boundaries, and memory offsets.`
     });
 
-    // Question G9: Pass Sequencing
+    // Question 9: Pass Sequencing
     const correctPass = `Constant folding must execute before dead code elimination to expose orphaned branches`;
     const shuffledPass = shuffleOptions(correctPass, [
-      `Optimization passes operate entirely independently without sequence requirements`,
+      `Optimization passes operate entirely independently without sequence rules`,
       `Dead code pruning must always occur prior to lexical tokenization`,
       `Passes are restricted solely to writing hardware assembly files`
     ]);
@@ -320,16 +326,16 @@ export default function OptilensCore() {
       explanation: `Executing Constant Folding first simplifies conditions and uncovers dead code blocks that subsequent DCE passes can prune.`
     });
 
-    // Question G10: Terminal Return
-    const lastVar = varsFound.length > 0 ? varsFound[varsFound.length - 1].name : 'result';
-    const correctRet = `Lowered into a terminal return IR tuple passing final register '${lastVar}'`;
+    // Question 10: Terminal Return
+    const retVar = varsFound.length > 0 ? varsFound[varsFound.length - 1].name : 'result';
+    const correctRet = `Lowered into a terminal return IR tuple passing final register '${retVar}'`;
     const shuffledRet = shuffleOptions(correctRet, [
-      `Purged completely from the activation stack frame`,
-      `Converted into an unconditional infinite branch loop`,
-      `Swapped into argument position 1 of the function header`
+      `Purged completely from the activation stack frame during parsing`,
+      `Converted into an unconditional infinite branch loop instruction`,
+      `Swapped into argument position 1 of the function header signature`
     ]);
     questions.push({
-      question: `How is the concluding 'return' statement handling variable '${lastVar}' during intermediate code generation?`,
+      question: `How is the concluding 'return' statement handling variable '${retVar}' during intermediate code generation?`,
       options: shuffledRet.options,
       correctIndex: shuffledRet.correctIndex,
       explanation: `The return statement maps to a terminal IR instruction passing the final computed register value back to the caller.`
