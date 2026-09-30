@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Play, Zap, Eye, Sparkles, RefreshCw, Code2 } from 'lucide-react';
+import { Play, Zap, Eye, Sparkles, RefreshCw, Code2, Trophy, CheckCircle, HelpCircle } from 'lucide-react';
 
 const GEMINI_API_KEY =
   (typeof process !== 'undefined' && process.env && process.env.REACT_APP_GEMINI_API_KEY) ||
@@ -7,7 +7,7 @@ const GEMINI_API_KEY =
   (typeof process !== 'undefined' && process.env && process.env.VITE_GEMINI_API_KEY) ||
   '';
 
-export default function App() {
+export default function OptilensCore() {
   const [code, setCode] = useState(`int main() {
     int a = 5 * 2;
     int b = a;
@@ -27,6 +27,13 @@ export default function App() {
   const [quads, setQuads] = useState([]);
   const [triples, setTriples] = useState([]);
   const [metrics, setMetrics] = useState({ rawCount: 0, optCount: 0, deadCount: 0 });
+
+  // 🎮 Integrated AI Quiz Challenge States (Based on User Input Code)
+  const [quiz, setQuiz] = useState(null);
+  const [quizLoading, setQuizLoading] = useState(false);
+  const [selectedAnswer, setSelectedAnswer] = useState(null);
+  const [quizSubmitted, setQuizSubmitted] = useState(false);
+  const [score, setScore] = useState(0);
 
   // Dynamic Compiler Analyzer for ANY C++ Code
   const processCode = (inputCode) => {
@@ -68,7 +75,7 @@ export default function App() {
       if (trimmed.includes('=')) {
         let [left, right] = trimmed.split('=').map((s) => s.replace('int', '').replace(';', '').trim());
 
-        // Arithmetic expressions (e.g. a = 5 * 2 or result = b + 15)
+        // Arithmetic expressions
         const opMatch = right.match(/([a-zA-Z0-9_]+)\s*([\+\-\*\/])\s*([a-zA-Z0-9_]+)/);
 
         if (opMatch) {
@@ -84,7 +91,7 @@ export default function App() {
           tripleList.push({ index: `(${tripleList.length})`, op, arg1, arg2 });
           tripleList.push({ index: `(${tripleList.length})`, op: '=', arg1: left, arg2: `(${tripleList.length - 1})` });
 
-          // Optimization Pass (Constant Folding)
+          // Optimization Pass
           if (!isNaN(arg1) && !isNaN(arg2)) {
             const val = eval(`${arg1} ${op} ${arg2}`);
             variables[left] = val;
@@ -93,12 +100,10 @@ export default function App() {
             optimized.push({ id: optimized.length + 1, text: `${left} = ${right}`, pass: 'Code Pass' });
           }
         } else {
-          // Simple assignment (e.g. unused = 100 or b = a)
           raw.push({ id: raw.length + 1, text: `${left} = ${right}` });
           quadList.push({ op: '=', arg1: right, arg2: '-', result: left });
           tripleList.push({ index: `(${tripleList.length})`, op: '=', arg1: left, arg2: right });
 
-          // Check Dead Code
           if (!usedVars.has(left) && left !== 'result') {
             deadLines++;
             optimized.push({ id: optimized.length + 1, text: `// ${left} = ${right} (Removed)`, pass: 'Dead Code Elimination' });
@@ -128,11 +133,73 @@ export default function App() {
     processCode(code);
   }, [code]);
 
+  // Generate Quiz specifically from INPUT CODE
+  const fetchQuizForCurrentCode = async (inputCode) => {
+    setQuizLoading(true);
+    setSelectedAnswer(null);
+    setQuizSubmitted(false);
+
+    const fallbackQuiz = {
+      question: "Is specific C++ input code mein primary optimization kya perform ho sakti hai?",
+      options: [
+        "Dead Code Elimination (unused variables remove honge)",
+        "Constant Folding (5 * 2 pre-calculate hoga)",
+        "Dono Constant Folding aur Dead Code Elimination",
+        "Koi optimization possible nahi hai"
+      ],
+      correctIndex: 2,
+      explanation: "Aapke input code mein '5 * 2' Constant Folding se compute hoga aur 'unused' variable Dead Code Elimination se hategai!"
+    };
+
+    if (!GEMINI_API_KEY) {
+      setTimeout(() => {
+        setQuiz(fallbackQuiz);
+        setQuizLoading(false);
+      }, 500);
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [
+                  {
+                    text: `Based EXACTLY on this C++ code provided by the user:\n\n${inputCode}\n\nGenerate 1 multiple choice quiz question testing TAC optimization (e.g. Constant Folding, Dead Code, Instruction Reduction). Return strictly valid JSON format matching this without markdown code fences:\n{\n  "question": "Question text about the specific user code above",\n  "options": ["Option 0", "Option 1", "Option 2", "Option 3"],\n  "correctIndex": 0,\n  "explanation": "Detailed explanation based on user code."\n}`
+                  }
+                ]
+              }
+            ]
+          })
+        }
+      );
+
+      const data = await response.json();
+      const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (rawText) {
+        const cleanedText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+        setQuiz(JSON.parse(cleanedText));
+      } else {
+        setQuiz(fallbackQuiz);
+      }
+    } catch (err) {
+      setQuiz(fallbackQuiz);
+    } finally {
+      setQuizLoading(false);
+    }
+  };
+
   const runPipeline = async () => {
     setLoading(true);
     setAiLoading(true);
 
     processCode(code);
+    fetchQuizForCurrentCode(code);
 
     const fallbackAnalysis = `🤖 Gemini Dynamic Code Analysis:
 
@@ -189,6 +256,14 @@ export default function App() {
     }
   };
 
+  const handleQuizSubmit = () => {
+    if (selectedAnswer === null) return;
+    setQuizSubmitted(true);
+    if (selectedAnswer === quiz.correctIndex) {
+      setScore((prev) => prev + 10);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-sky-50 to-blue-100 text-slate-800 font-sans p-4 md:p-8">
       <div className="max-w-7xl mx-auto space-y-6">
@@ -207,9 +282,14 @@ export default function App() {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2 bg-sky-100 border border-sky-300/80 px-3 py-1.5 rounded-full shadow-inner">
-            <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-xs font-semibold text-sky-900">Gemini Active & Connected</span>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5 bg-amber-50 border border-amber-200 text-amber-800 px-3 py-1.5 rounded-full shadow-sm text-xs font-bold">
+              <Trophy className="w-4 h-4 text-amber-500" /> Score: {score} pts
+            </div>
+            <div className="flex items-center gap-2 bg-sky-100 border border-sky-300/80 px-3 py-1.5 rounded-full shadow-inner">
+              <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-xs font-semibold text-sky-900">Gemini Active & Connected</span>
+            </div>
           </div>
         </header>
 
@@ -294,7 +374,7 @@ export default function App() {
               ))}
             </div>
 
-            {/* Dynamic Tab Contents */}
+            {/* Tab Contents */}
             <div className="flex-1 bg-slate-900 border border-slate-800 rounded-xl p-4 overflow-y-auto max-h-80 font-mono text-sm shadow-inner">
               {activeTab === 'raw' && (
                 <div className="space-y-2">
@@ -380,28 +460,112 @@ export default function App() {
           </div>
         </div>
 
-        {/* Dynamic AI Trace Output Box */}
-        <div className="bg-white/90 border border-sky-200/80 rounded-2xl p-6 shadow-sm">
-          <h2 className="text-xs font-bold uppercase tracking-wider text-sky-900 flex items-center gap-2 mb-4">
-            <Sparkles className="w-4 h-4 text-amber-500" /> Smart Logic Trace & Optimization Insights
-          </h2>
+        {/* Integrated AI Section: Explanation + In-Context Code Quiz */}
+        <div className="bg-white/90 border border-sky-200/80 rounded-2xl p-6 shadow-sm space-y-6">
+          {/* Part 1: Smart Logic Trace */}
+          <div>
+            <h2 className="text-xs font-bold uppercase tracking-wider text-sky-900 flex items-center gap-2 mb-3">
+              <Sparkles className="w-4 h-4 text-amber-500" /> Smart Logic Trace & Optimization Insights
+            </h2>
 
-          <div className="bg-sky-50/60 border border-sky-200 rounded-xl p-5 min-h-[120px]">
-            {aiLoading ? (
-              <div className="flex items-center gap-3 text-sky-800 text-sm font-medium">
-                <RefreshCw className="w-4 h-4 animate-spin text-sky-600" />
-                <span>Gemini 2.5 Flash is analyzing your C++ code dynamic IR...</span>
-              </div>
-            ) : aiAnalysis ? (
-              <div className="text-sm text-slate-800 whitespace-pre-line leading-relaxed font-sans">
-                {aiAnalysis}
-              </div>
-            ) : (
-              <div className="text-sm text-sky-700 flex items-center gap-2">
-                <Eye className="w-4 h-4" />
-                <span>Type any C++ code above and click "RUN PIPELINE & AI TRACE".</span>
-              </div>
-            )}
+            <div className="bg-sky-50/60 border border-sky-200 rounded-xl p-5 min-h-[100px]">
+              {aiLoading ? (
+                <div className="flex items-center gap-3 text-sky-800 text-sm font-medium">
+                  <RefreshCw className="w-4 h-4 animate-spin text-sky-600" />
+                  <span>Gemini 2.5 Flash is analyzing your C++ code dynamic IR...</span>
+                </div>
+              ) : aiAnalysis ? (
+                <div className="text-sm text-slate-800 whitespace-pre-line leading-relaxed font-sans">
+                  {aiAnalysis}
+                </div>
+              ) : (
+                <div className="text-sm text-sky-700 flex items-center gap-2">
+                  <Eye className="w-4 h-4" />
+                  <span>Type any C++ code above and click "RUN PIPELINE & AI TRACE".</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Part 2: Dynamic Code Quiz Embedded in the Same AI Interface */}
+          <div className="border-t border-sky-200/80 pt-5">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-amber-700 flex items-center gap-2 mb-3">
+              <Trophy className="w-4 h-4 text-amber-500" /> AI Interactive Quiz (Based on Input Code Above)
+            </h2>
+
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 text-slate-200">
+              {quizLoading ? (
+                <div className="flex items-center justify-center py-6 gap-2 text-sky-400 text-xs font-medium">
+                  <RefreshCw className="w-4 h-4 animate-spin" /> Generating quiz question based on your C++ code...
+                </div>
+              ) : quiz ? (
+                <div className="space-y-3">
+                  <p className="text-sm font-semibold text-sky-300">{quiz.question}</p>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 my-3">
+                    {quiz.options.map((opt, idx) => {
+                      let optionStyle = 'bg-slate-800 border-slate-700 text-slate-300 hover:border-sky-400';
+
+                      if (quizSubmitted) {
+                        if (idx === quiz.correctIndex) {
+                          optionStyle = 'bg-emerald-950 border-emerald-500 text-emerald-200';
+                        } else if (idx === selectedAnswer) {
+                          optionStyle = 'bg-rose-950 border-rose-500 text-rose-200';
+                        }
+                      } else if (selectedAnswer === idx) {
+                        optionStyle = 'bg-sky-900 border-sky-400 text-white';
+                      }
+
+                      return (
+                        <button
+                          key={idx}
+                          onClick={() => !quizSubmitted && setSelectedAnswer(idx)}
+                          className={`text-left text-xs p-3 rounded-lg border transition-all ${optionStyle}`}
+                        >
+                          <span className="font-bold mr-2 text-sky-400">{String.fromCharCode(65 + idx)}.</span>
+                          {opt}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {!quizSubmitted ? (
+                    <button
+                      onClick={handleQuizSubmit}
+                      disabled={selectedAnswer === null}
+                      className="py-2 px-6 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-lg text-xs transition-all disabled:opacity-40"
+                    >
+                      SUBMIT QUIZ ANSWER
+                    </button>
+                  ) : (
+                    <div
+                      className={`p-3 rounded-lg text-xs border ${
+                        selectedAnswer === quiz.correctIndex
+                          ? 'bg-emerald-950/80 border-emerald-600 text-emerald-200'
+                          : 'bg-rose-950/80 border-rose-600 text-rose-200'
+                      }`}
+                    >
+                      <p className="font-bold mb-1 flex items-center gap-1">
+                        {selectedAnswer === quiz.correctIndex ? (
+                          <>
+                            <CheckCircle className="w-4 h-4 text-emerald-400" /> Sahi Jawab! (+10 Points)
+                          </>
+                        ) : (
+                          <>
+                            <HelpCircle className="w-4 h-4 text-rose-400" /> Galat Jawab
+                          </>
+                        )}
+                      </p>
+                      <p className="text-slate-300 mt-1">{quiz.explanation}</p>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-xs text-slate-400">
+                  Code run karne ke baad yahan usi code par based quiz question aayega.
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
