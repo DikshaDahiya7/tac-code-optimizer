@@ -37,7 +37,7 @@ export default function OptilensCore() {
   const [score, setScore] = useState(0);
   const [showModal, setShowModal] = useState(false);
 
-  // Handle Input Code Change: Reset Score & Quiz Immediately
+  // Reset Score & Quiz Instantly When Source Code Changes
   const handleCodeChange = (e) => {
     const newCode = e.target.value;
     setCode(newCode);
@@ -141,8 +141,8 @@ export default function OptilensCore() {
     processCode(code);
   }, [code]);
 
-  // Concept & TAC Breakdown Based Quiz Generation
-  const fetchConceptQuizForCurrentCode = async (inputCode) => {
+  // Concept & TAC Breakdown Based Quiz Generation (Synced Strictly to Latest Input Code)
+  const fetchConceptQuizForCurrentCode = async (targetCode) => {
     setQuizLoading(true);
     setSelectedAnswers({});
     setQuizSubmitted(false);
@@ -152,34 +152,34 @@ export default function OptilensCore() {
 
     const fallbackQuizList = [
       {
-        question: "What optimization pass evaluates static arithmetic expressions like '5 * 2' at compile time?",
-        options: ["Dead Code Elimination", "Constant Folding", "Loop Invariant Motion", "Register Allocation"],
-        correctIndex: 1,
-        explanation: "Constant Folding evaluates constant expressions during compilation to improve runtime performance."
-      },
-      {
-        question: "Why is the variable 'unused' removed during code optimization?",
-        options: ["Syntax Error", "Dead Code Elimination (Variable is never referenced)", "Type Casting Fault", "Memory Overflow"],
-        correctIndex: 1,
-        explanation: "Dead Code Elimination purges unused variable declarations that do not affect program outcome."
-      },
-      {
-        question: "How does raw Three-Address Code (TAC) structure complex binary operations?",
-        options: ["Merges everything in one statement", "Uses temporary variables (e.g., t1, t2) to limit operands to at most 3", "Converts code directly to Assembly", "Ignores variable types"],
-        correctIndex: 1,
-        explanation: "TAC simplifies assignments by introducing temporary variables so each line has at most 3 operands."
-      },
-      {
-        question: "What is the primary function of Copy Propagation in Intermediate Representation?",
-        options: ["Replaces variable references with direct assignments", "Duplicates instructions for parallelism", "Converts integer to float", "Removes return calls"],
+        question: `In this specific C++ input code, what does the Constant Folding pass optimize?`,
+        options: ["Evaluates constant mathematical expressions at compile time", "Deletes all variable declarations", "Converts code to float type", "Replaces return values"],
         correctIndex: 0,
-        explanation: "Copy Propagation substitutes target variables with assigned values directly to minimize unnecessary memory copies."
+        explanation: "Constant Folding evaluates static arithmetic expressions during compile time to save runtime CPU operations."
       },
       {
-        question: "How do Quadruple representations differ from Triple representations?",
-        options: ["Quadruples explicitly store the result field, whereas Triples implicitly reference instruction positions", "Triples consume more storage", "Quadruples are strictly for loops", "Both are identical"],
+        question: `How are unused stores or unreferenced variables handled in this code's optimization pass?`,
+        options: ["Converted to global variables", "Eliminated via Dead Code Elimination pass", "Saved into a secondary table", "Turned into infinite loops"],
+        correctIndex: 1,
+        explanation: "Dead Code Elimination removes variable assignments that have no impact on the program output."
+      },
+      {
+        question: `Why does raw Three-Address Code (TAC) split single assignments into multiple statements?`,
+        options: ["To ensure every instruction has at most 3 operands using temporary variables", "To slow down execution", "To increase file size", "Because C++ requires it"],
         correctIndex: 0,
-        explanation: "Quadruples use explicit (op, arg1, arg2, result) records, while Triples use implicit positional references."
+        explanation: "TAC standardizes complex expressions into simple 3-operand steps (result = arg1 op arg2)."
+      },
+      {
+        question: `What is the key structural difference between Quadruples and Triples in IR storage?`,
+        options: ["Quadruples store explicit result fields; Triples reference instruction indices implicitly", "Triples use 4 fields", "Quadruples cannot process loops", "They are identical"],
+        correctIndex: 0,
+        explanation: "Quadruple uses (op, arg1, arg2, result) while Triple uses positional indices (0), (1) to avoid storing explicit results."
+      },
+      {
+        question: `What primary benefit does Copy Propagation bring to the final optimized TAC?`,
+        options: ["Substitutes variable assignments directly with known values or copies", "Deletes functions", "Duplicates instructions", "Adds extra registers"],
+        correctIndex: 0,
+        explanation: "Copy Propagation propagates direct assignments (e.g. b = a) across expressions to simplify instruction chains."
       }
     ];
 
@@ -192,6 +192,7 @@ export default function OptilensCore() {
     }
 
     try {
+      const uniqueTimestamp = Date.now();
       const response = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
         {
@@ -202,7 +203,7 @@ export default function OptilensCore() {
               {
                 parts: [
                   {
-                    text: `Analyze this C++ source code and its TAC breakdown:\n\n${inputCode}\n\nGenerate conceptual multiple-choice quiz questions specifically tailored to test and clarify how this exact code is processed into Three-Address Code (TAC), Quadruples/Triples, and optimized (Constant Folding, Dead Code, Copy Propagation).\n\nCRITICAL REQUIREMENTS:\n1. Generate ONLY meaningful questions that directly test concept clarity and TAC breakdown steps for this code.\n2. Do NOT count code lines to decide questions. Instead, create 1 question for each distinct concept/operation present in the code TAC breakdown (Minimum 5 questions, Maximum 10 questions).\n3. All questions, options, and explanations MUST BE IN ENGLISH ONLY.\n4. Return ONLY valid JSON matching this format:\n{\n  "quiz": [\n    {\n      "question": "English question testing TAC breakdown/concept",\n      "options": ["Option A", "Option B", "Option C", "Option D"],\n      "correctIndex": 0,\n      "explanation": "Clear explanation of the concept."\n    }\n  ]\n}`
+                    text: `Analyze this EXACT C++ code snippet (Timestamp: ${uniqueTimestamp}):\n\n\`\`\`cpp\n${targetCode}\n\`\`\`\n\nGenerate conceptual multiple-choice quiz questions specifically tailored to test and clarify how THIS EXACT CODE is processed into Three-Address Code (TAC), Quadruples/Triples, and optimized (Constant Folding, Dead Code, Copy Propagation).\n\nCRITICAL REQUIREMENTS:\n1. Questions MUST reference specific variable names, expressions, and values from THIS exact C++ code snippet.\n2. Do NOT count code lines to decide question count. Instead, generate 1 question for each distinct operation/concept in this code's TAC breakdown (Minimum 5 questions, Maximum 10 questions).\n3. All questions, options, and explanations MUST BE IN ENGLISH ONLY.\n4. Return ONLY valid JSON matching this format:\n{\n  "quiz": [\n    {\n      "question": "English question specifically referencing variables/values in this C++ code",\n      "options": ["Option A", "Option B", "Option C", "Option D"],\n      "correctIndex": 0,\n      "explanation": "Clear explanation of the concept for this code."\n    }\n  ]\n}`
                   }
                 ]
               }
@@ -270,7 +271,10 @@ export default function OptilensCore() {
               {
                 parts: [
                   {
-                    text: `Analyze this C++ source code and its IR/TAC representation in concise English. Explain Constant Folding, Copy Propagation, and Dead Code Elimination step by step:\n\n${code}`
+                    text: `Analyze this C++ source code and its IR/TAC representation in simple, clear English. Explain step-by-step:
+1. Intermediate Representation (TAC) transformation.
+2. Constant Folding and Copy Propagation performed on specific variables.
+3. Dead Code Elimination applied.\n\nCode:\n${code}`
                   }
                 ]
               }
@@ -391,7 +395,7 @@ export default function OptilensCore() {
               {loading || aiLoading ? (
                 <>
                   <RefreshCw className="w-5 h-5 animate-spin" />
-                  <span>Analyzing Code & Generating TAC...</span>
+                  <span>Analyzing Code & Generating Quiz...</span>
                 </>
               ) : (
                 <>
@@ -530,7 +534,7 @@ export default function OptilensCore() {
         <div className="bg-white/90 border border-sky-200/80 rounded-2xl p-6 shadow-sm space-y-6">
           <div>
             <h2 className="text-xs font-bold uppercase tracking-wider text-sky-900 flex items-center gap-2 mb-3">
-              <Sparkles className="w-4 h-4 text-amber-500" /> Smart Logic Trace & Concept Analysis
+              <Sparkles className="w-4 h-4 text-amber-500" /> Smart Logic Trace & Detailed Concept Analysis
             </h2>
 
             <div className="bg-sky-50/60 border border-sky-200 rounded-xl p-5 min-h-[100px]">
@@ -556,7 +560,7 @@ export default function OptilensCore() {
           <div className="border-t border-sky-200/80 pt-5">
             <div className="flex justify-between items-center mb-3">
               <h2 className="text-xs font-bold uppercase tracking-wider text-amber-700 flex items-center gap-2">
-                <Trophy className="w-4 h-4 text-amber-500" /> Dynamic Concept Quiz ({quizList.length} Questions Created)
+                <Trophy className="w-4 h-4 text-amber-500" /> Dynamic Concept Quiz ({quizList.length} Questions Created for This Code)
               </h2>
               {quizSubmitted && (
                 <button
@@ -571,7 +575,7 @@ export default function OptilensCore() {
             <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 text-slate-200">
               {quizLoading ? (
                 <div className="flex items-center justify-center py-6 gap-2 text-sky-400 text-xs font-medium">
-                  <RefreshCw className="w-4 h-4 animate-spin" /> Generating concept breakdown quiz based on your code...
+                  <RefreshCw className="w-4 h-4 animate-spin" /> Generating concept breakdown quiz based on your new code...
                 </div>
               ) : quizList.length > 0 ? (
                 <div className="space-y-4">
