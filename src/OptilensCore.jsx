@@ -28,7 +28,7 @@ export default function OptilensCore() {
   const [triples, setTriples] = useState([]);
   const [metrics, setMetrics] = useState({ rawCount: 0, optCount: 0, deadCount: 0 });
 
-  // Quiz & Scoring States
+  // Quiz States
   const [quizList, setQuizList] = useState([]);
   const [currentQuizIndex, setCurrentQuizIndex] = useState(0);
   const [quizLoading, setQuizLoading] = useState(false);
@@ -37,7 +37,7 @@ export default function OptilensCore() {
   const [score, setScore] = useState(0);
   const [showModal, setShowModal] = useState(false);
 
-  // Reset Score & Quiz Instantly When Source Code Changes
+  // Reset Score & Quiz Instantly When Code Changes
   const handleCodeChange = (e) => {
     const newCode = e.target.value;
     setCode(newCode);
@@ -141,79 +141,199 @@ export default function OptilensCore() {
     processCode(code);
   }, [code]);
 
-  // Dynamic Fallback Quiz Generator (guarantees 5-10 questions specifically matching user code)
-  const generateDynamicLocalQuiz = (targetCode) => {
-    const lines = targetCode.split('\n').filter(l => l.trim().length > 0 && !l.trim().startsWith('//'));
-    const lineCount = lines.length;
-    const targetCount = Math.min(10, Math.max(5, Math.floor(lineCount * 1.2)));
-
-    let generatedQuestions = [
-      {
-        question: `What primary optimization pass is applied when evaluating arithmetic operations in this code?`,
-        options: ["Constant Folding (evaluates expressions at compile time)", "Loop Unrolling", "Instruction Scheduling", "Register Spilling"],
-        correctIndex: 0,
-        explanation: "Constant Folding evaluates static arithmetic calculations at compile time to save execution cycles."
-      },
-      {
-        question: `How are unreferenced variables in this input code handled during IR optimization?`,
-        options: ["Dead Code Elimination (purges unused store operations)", "Converted to global scope", "Moved to outer loop", "Replaced with return values"],
-        correctIndex: 0,
-        explanation: "Dead Code Elimination removes variable declarations and assignments that do not affect the output."
-      },
-      {
-        question: `Why does the parser break complex assignments into Three-Address Code (TAC)?`,
-        options: ["To restrict each instruction to at most 3 operands using temporary registers (e.g. t1, t2)", "To increase execution overhead", "To obscure code logic", "To enforce return types"],
-        correctIndex: 0,
-        explanation: "TAC standardizes complex expressions into simple binary or unary steps suitable for lower-level generation."
-      },
-      {
-        question: `What distinguishes Quadruples from Triples in intermediate storage representation?`,
-        options: ["Quadruples store an explicit result field, while Triples reference positional indices implicitly", "Triples take more memory space", "Quadruples are used only for loop unrolling", "They are identical in memory"],
-        correctIndex: 0,
-        explanation: "Quadruples store (op, arg1, arg2, result) explicitly, whereas Triples use implicit positional references."
-      },
-      {
-        question: `What role does Copy Propagation play in optimizing assignment chains in this code?`,
-        options: ["Replaces variable references directly with assigned values to eliminate intermediate copies", "Duplicates memory registers", "Deletes return statements", "Converts floats to integers"],
-        correctIndex: 0,
-        explanation: "Copy Propagation substitutes target variables directly with assigned values across expressions."
-      },
-      {
-        question: `In TAC lowering, how are temporary registers (e.g. t1, t2) utilized?`,
-        options: ["To store intermediate results of binary sub-expressions", "To store permanent global variables", "To handle exception handling", "To store loop counters only"],
-        correctIndex: 0,
-        explanation: "Temporary variables hold intermediate computation results before final assignment."
-      },
-      {
-        question: `What is the impact of eliminating dead code on memory and CPU instruction count?`,
-        options: ["Reduces memory footprint and eliminates unnecessary instruction execution", "Increases compile time significantly", "Has no effect on assembly generation", "Forces register spilling"],
-        correctIndex: 0,
-        explanation: "Removing dead code reduces binary size and speeds up runtime execution."
-      },
-      {
-        question: `How does intermediate representation (IR) facilitate cross-architecture compilation?`,
-        options: ["Provides an architecture-independent platform for optimization passes before code generation", "Compiles directly to machine assembly", "Executes code directly in browser", "Bypasses compiler front-end"],
-        correctIndex: 0,
-        explanation: "IR decouples language front-ends from target architecture back-ends."
-      },
-      {
-        question: `In Quadruple tables, what does the '=' operator signify in single-argument assignments?`,
-        options: ["Direct variable store or copy assignment", "Arithmetic addition", "Pointer dereference", "Branch comparison"],
-        correctIndex: 0,
-        explanation: "The '=' operator in Quadruples represents direct value assignment to a target variable."
-      },
-      {
-        question: `Why is compile-time constant evaluation preferred over runtime evaluation?`,
-        options: ["Eliminates CPU arithmetic operations during execution, boosting performance", "Increases executable memory size", "Prevents compilation errors", "Simplifies source code readability"],
-        correctIndex: 0,
-        explanation: "Pre-computing values at compile time saves CPU compute time at runtime."
-      }
-    ];
-
-    return generatedQuestions.slice(0, targetCount);
+  // Smart Helper: Shuffle Options & Set Randomized Correct Index
+  const shuffleOptions = (correctOpt, distractors) => {
+    const all = [correctOpt, ...distractors];
+    // Fisher-Yates shuffle
+    for (let i = all.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [all[i], all[j]] = [all[j], all[i]];
+    }
+    return {
+      options: all,
+      correctIndex: all.indexOf(correctOpt)
+    };
   };
 
-  // Scalable Concept & TAC Breakdown Based Quiz Generation
+  // Dynamic Code-Aware Quiz Builder (Extracts Real Variables & Values)
+  const buildDynamicCodeQuiz = (targetCode) => {
+    const lines = targetCode.split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('//') && !l.startsWith('{') && !l.startsWith('}'));
+    
+    // Extract variables and arithmetic expressions
+    let varsFound = [];
+    let mathExprs = [];
+    let unusedVars = [];
+
+    lines.forEach(line => {
+      if (line.includes('=')) {
+        let parts = line.split('=');
+        let varName = parts[0].replace('int', '').trim();
+        let rightSide = parts[1].replace(';', '').trim();
+        varsFound.push({ name: varName, expr: rightSide });
+
+        if (/[\+\-\*\/]/.test(rightSide)) {
+          mathExprs.push({ name: varName, expr: rightSide });
+        }
+        if (varName.includes('unused') || varName.includes('dummy') || varName.includes('check')) {
+          unusedVars.push(varName);
+        }
+      }
+    });
+
+    const targetCount = Math.min(10, Math.max(5, lines.length));
+    let questions = [];
+
+    // 1. Variable-Specific TAC Question
+    if (varsFound.length > 0) {
+      const targetVar = varsFound[0];
+      const correct = `Evaluates assignment '${targetVar.name} = ${targetVar.expr}' into temporary three-address registers`;
+      const shuffled = shuffleOptions(correct, [
+        `Converts '${targetVar.name}' into a global string pointer`,
+        `Deletes variable '${targetVar.name}' during initial scanning`,
+        `Transforms '${targetVar.name}' into an infinite loop counter`
+      ]);
+      questions.push({
+        question: `How does the Intermediate Representation parser lower variable assignment '${targetVar.name} = ${targetVar.expr}'?`,
+        options: shuffled.options,
+        correctIndex: shuffled.correctIndex,
+        explanation: `The parser breaks '${targetVar.name}' into standardized three-address instructions so operations contain at most 3 addresses.`
+      });
+    }
+
+    // 2. Expression/Constant Folding Question
+    if (mathExprs.length > 0) {
+      const exprObj = mathExprs[0];
+      const correct = `Constant Folding pre-calculates static arithmetic in '${exprObj.expr}' at compile time`;
+      const shuffled = shuffleOptions(correct, [
+        `Loop Unrolling duplicates statement '${exprObj.expr}' across 4 iterations`,
+        `Instruction Scheduling delays '${exprObj.expr}' to execution phase`,
+        `Register Allocation moves '${exprObj.expr}' to disk storage`
+      ]);
+      questions.push({
+        question: `What compiler pass optimizes the mathematical expression '${exprObj.name} = ${exprObj.expr}' in this code?`,
+        options: shuffled.options,
+        correctIndex: shuffled.correctIndex,
+        explanation: `Arithmetic containing known literal operands (${exprObj.expr}) is pre-computed during compilation via Constant Folding.`
+      });
+    }
+
+    // 3. Dead Code Question
+    const deadVarName = unusedVars.length > 0 ? unusedVars[0] : (varsFound.length > 2 ? varsFound[2].name : 'unused_var');
+    const correctDead = `Dead Code Elimination removes store operations for '${deadVarName}' because it does not affect return value`;
+    const shuffledDead = shuffleOptions(correctDead, [
+      `Copy Propagation duplicates '${deadVarName}' across all registers`,
+      `Common Subexpression Elimination converts '${deadVarName}' into a function call`,
+      `The compiler leaves '${deadVarName}' untouched to increase binary size`
+    ]);
+    questions.push({
+      question: `Why is variable '${deadVarName}' flagged and removed during optimization passes of this C++ snippet?`,
+      options: shuffledDead.options,
+      correctIndex: shuffledDead.correctIndex,
+      explanation: `Dead Code Elimination removes variables like '${deadVarName}' that are assigned but never referenced later in the execution trace.`
+    });
+
+    // 4. Quadruples Representation Question
+    const qCorrect = `Stores 4 fields explicitly: (Operator, Argument 1, Argument 2, Result target)`;
+    const qShuffled = shuffleOptions(qCorrect, [
+      `Stores 2 fields: (Variable Name, Value Pointer)`,
+      `Omits result field and uses implicit positional references (0), (1)`,
+      `Converts instructions directly into binary machine code bytes`
+    ]);
+    questions.push({
+      question: `How are assignments in this input code represented in the Quadruples (Quads) IR table?`,
+      options: qShuffled.options,
+      correctIndex: qShuffled.correctIndex,
+      explanation: `Quadruples explicitly store (op, arg1, arg2, result) tuples for each statement in the instruction sequence.`
+    });
+
+    // 5. Triples vs Quads Question
+    const tCorrect = `Triples eliminate explicit result targets by referencing prior instruction indices (0), (1)...`;
+    const tShuffled = shuffleOptions(tCorrect, [
+      `Triples consume double the memory space of Quadruples`,
+      `Triples can only be generated for loop conditions`,
+      `Triples store 5 arguments per table row`
+    ]);
+    questions.push({
+      question: `What structural advantage do Triples offer over Quadruples when storing this code's TAC sequence?`,
+      options: tShuffled.options,
+      correctIndex: tShuffled.correctIndex,
+      explanation: `Triples save memory by referencing instruction indices (positional references) instead of allocating an explicit result field.`
+    });
+
+    // 6. Temporary Registers Question
+    const tempCorrect = `To hold intermediate computation sub-results for expressions with multiple operands`;
+    const tempShuffled = shuffleOptions(tempCorrect, [
+      `To store global environment variables across functions`,
+      `To force garbage collection cleanup cycles`,
+      `To replace return statement values`
+    ]);
+    questions.push({
+      question: `Why are temporary registers (e.g., t1, t2) generated during TAC transformation for this code?`,
+      options: tempShuffled.options,
+      correctIndex: tempShuffled.correctIndex,
+      explanation: `Intermediate temporaries hold partial calculations so that every TAC statement observes the 3-address limit.`
+    });
+
+    // 7. Copy Propagation Question
+    const cpCorrect = `Substitutes variable assignments (e.g. b = a) directly across subsequent usages`;
+    const cpShuffled = shuffleOptions(cpCorrect, [
+      `Duplicates loop bodies to increase execution speed`,
+      `Converts floating point values into 64-bit integers`,
+      `Removes all return directives from function blocks`
+    ]);
+    questions.push({
+      question: `How does Copy Propagation simplify the instruction chain for variables in this snippet?`,
+      options: cpShuffled.options,
+      correctIndex: cpShuffled.correctIndex,
+      explanation: `Copy Propagation replaces copies with original source values, eliminating redundant register stores.`
+    });
+
+    // 8. TAC Operand Constraint Question
+    const opCorrect = `At most 3 memory addresses (2 operands + 1 result target)`;
+    const opShuffled = shuffleOptions(opCorrect, [
+      `Unlimited number of variables per statement`,
+      `Exactly 1 variable per line`,
+      `At least 5 variables per instruction`
+    ]);
+    questions.push({
+      question: `What fundamental operand constraint defines Three-Address Code (TAC) generated for this C++ code?`,
+      options: opShuffled.options,
+      correctIndex: opShuffled.correctIndex,
+      explanation: `Three-Address Code enforces that every instruction contains at most 3 operands.`
+    });
+
+    // 9. CPU Cycle Savings Question
+    const cpuCorrect = `Eliminates runtime arithmetic execution by computing static expressions during compilation`;
+    const cpuShuffled = shuffleOptions(cpuCorrect, [
+      `Increases runtime CPU instructions`,
+      `Forces CPU register spilling to disk`,
+      `Prevents C++ code from executing`
+    ]);
+    questions.push({
+      question: `What performance advantage does applying Constant Folding to this snippet provide at runtime?`,
+      options: cpuShuffled.options,
+      correctIndex: cpuShuffled.correctIndex,
+      explanation: `Pre-calculating static expressions reduces runtime clock cycles required by the processor.`
+    });
+
+    // 10. Return Statement TAC Question
+    const retCorrect = `Translates 'return' into a final return tuple pointing to the computed return variable`;
+    const retShuffled = shuffleOptions(retCorrect, [
+      `Deletes the return line during Dead Code Elimination`,
+      `Converts return values into infinite loops`,
+      `Stores return statements in Quadruple Arg2 column`
+    ]);
+    questions.push({
+      question: `How is the final 'return' statement in this C++ program structured in optimized TAC?`,
+      options: retShuffled.options,
+      correctIndex: retShuffled.correctIndex,
+      explanation: `Return statements map to return instructions pointing to the simplified result variable.`
+    });
+
+    return questions.slice(0, targetCount);
+  };
+
+  // Fetch Quiz Engine
   const fetchConceptQuizForCurrentCode = async (targetCode) => {
     setQuizLoading(true);
     setSelectedAnswers({});
@@ -222,16 +342,13 @@ export default function OptilensCore() {
     setScore(0);
     setShowModal(false);
 
-    const validLines = targetCode.split('\n').filter((l) => l.trim().length > 0 && !l.trim().startsWith('//')).length;
-    const targetCount = Math.min(10, Math.max(5, Math.floor(validLines * 1.2)));
-
-    const fallbackQuiz = generateDynamicLocalQuiz(targetCode);
+    const generatedQuiz = buildDynamicCodeQuiz(targetCode);
 
     if (!GEMINI_API_KEY) {
       setTimeout(() => {
-        setQuizList(fallbackQuiz);
+        setQuizList(generatedQuiz);
         setQuizLoading(false);
-      }, 400);
+      }, 300);
       return;
     }
 
@@ -247,7 +364,7 @@ export default function OptilensCore() {
               {
                 parts: [
                   {
-                    text: `Analyze this EXACT C++ code snippet (Request ID: ${cacheBust}):\n\n\`\`\`cpp\n${targetCode}\n\`\`\`\n\nTask: Generate EXACTLY ${targetCount} multiple-choice quiz questions based strictly on THIS provided C++ code and its TAC breakdown.\n\nCRITICAL RULES:\n1. Every question MUST explicitly refer to variables, arithmetic operations, or statement lines present in THIS exact C++ code.\n2. Generate exactly ${targetCount} unique questions.\n3. All questions, options, and explanations MUST BE IN ENGLISH ONLY.\n4. Return ONLY valid JSON matching this exact structure without markdown code fences:\n{\n  "quiz": [\n    {\n      "question": "Question specifically referencing variables/values in this C++ code",\n      "options": ["Option A", "Option B", "Option C", "Option D"],\n      "correctIndex": 0,\n      "explanation": "Detailed explanation for this specific code."\n    }\n  ]\n}`
+                    text: `Analyze this C++ code (ID: ${cacheBust}):\n\n\`\`\`cpp\n${targetCode}\n\`\`\`\n\nGenerate ${generatedQuiz.length} unique multiple-choice questions specifically referencing exact variable names and arithmetic in THIS code. Return strictly valid JSON format matching:\n{\n  "quiz": [\n    {\n      "question": "Question referencing specific variable in code",\n      "options": ["Option A", "Option B", "Option C", "Option D"],\n      "correctIndex": 0,\n      "explanation": "Clear explanation."\n    }\n  ]\n}`
                   }
                 ]
               }
@@ -264,13 +381,13 @@ export default function OptilensCore() {
         if (parsed.quiz && Array.isArray(parsed.quiz) && parsed.quiz.length >= 5) {
           setQuizList(parsed.quiz.slice(0, 10));
         } else {
-          setQuizList(fallbackQuiz);
+          setQuizList(generatedQuiz);
         }
       } else {
-        setQuizList(fallbackQuiz);
+        setQuizList(generatedQuiz);
       }
     } catch (err) {
-      setQuizList(fallbackQuiz);
+      setQuizList(generatedQuiz);
     } finally {
       setQuizLoading(false);
     }
@@ -283,27 +400,27 @@ export default function OptilensCore() {
     processCode(code);
     fetchConceptQuizForCurrentCode(code);
 
-    const detailedFallbackTrace = `📌 Comprehensive Compiler Logic Trace & Analysis:
+    const detailedTraceText = `📌 Comprehensive Line-by-Line Compiler Logic Trace:
 
-1. LINE-BY-LINE THREE-ADDRESS CODE (TAC) LOWERING:
-   • The compiler parses source code expressions and introduces temporary registers (t1, t2...) to ensure every instruction contains at most 3 operands.
-   • Complex assignment chains are decomposed into atomic binary and unary operations.
+1. SOURCE CODE LOWERING TO THREE-ADDRESS CODE (TAC):
+   • The compiler scans source assignment statements and converts complex expressions into simplified 3-address tuples.
+   • Temporary variables (t1, t2...) are created to hold partial evaluation states.
 
-2. OPTIMIZATION PASSES DETAILED BREAKDOWN:
-   • Constant Folding: Expressions containing literal numeric constants (e.g., arithmetic products) are pre-evaluated at compile time to save runtime CPU operations.
-   • Copy Propagation: Assignments (e.g., b = a) are propagated directly across subsequent operations to remove unnecessary memory store/load instructions.
-   • Dead Code Elimination (DCE): Unused variable stores that do not affect the function return value are safely pruned.
+2. DETAILED PASS-BY-PASS OPTIMIZATION:
+   • Constant Folding Pass: Static arithmetic expressions containing literal operands are evaluated pre-execution at compile time.
+   • Copy Propagation Pass: Direct assignment chains (e.g., b = a) are propagated across expressions to remove redundant memory loads.
+   • Dead Code Elimination (DCE): Variable declarations and stores that do not impact the function return value are safely pruned.
 
-3. TUPLE STORAGE REPRESENTATIONS (QUADS & TRIPLES):
-   • Quadruples: Formatted into 4-column structures (Op, Arg1, Arg2, Result).
-   • Triples: Positionally indexed tuples (0, 1, 2...) that eliminate explicit result fields to save memory.`;
+3. MEMORY TUPLE MAPPING (QUADS & TRIPLES):
+   • Quadruples: Quad structures explicit 4-field tuples -> (Operator, Argument 1, Argument 2, Result Target).
+   • Triples: Positionally indexed tuples -> (0), (1)... referencing prior instruction positions to eliminate explicit result columns.`;
 
     if (!GEMINI_API_KEY) {
       setTimeout(() => {
-        setAiAnalysis(detailedFallbackTrace);
+        setAiAnalysis(detailedTraceText);
         setAiLoading(false);
         setLoading(false);
-      }, 400);
+      }, 300);
       return;
     }
 
@@ -318,7 +435,7 @@ export default function OptilensCore() {
               {
                 parts: [
                   {
-                    text: `Perform a detailed, step-by-step breakdown of this C++ code in clear, simple English:\n\n\`\`\`cpp\n${code}\n\`\`\`\n\nProvide a detailed analysis covering:\n1. LINE-BY-LINE TAC CONVERSION: Explain each line's transformation into Three-Address Code and why temporary variables (t1, t2...) were introduced.\n2. OPTIMIZATION PASS DETAILS: List every variable affected by Constant Folding, Copy Propagation, and Dead Code Elimination.\n3. QUADRUPLES & TRIPLES MAPPING: Explain how arguments and operators are stored in memory tuples.`
+                    text: `Analyze this C++ code in thorough line-by-line detail in clear English:\n\n\`\`\`cpp\n${code}\n\`\`\`\n\nExplain:\n1. Exact TAC line conversions and temporary variable creation.\n2. Specific variables affected by Constant Folding, Copy Propagation, and Dead Code Elimination.\n3. Quadruple and Triple memory table mappings.`
                   }
                 ]
               }
@@ -331,10 +448,10 @@ export default function OptilensCore() {
       if (data.candidates && data.candidates[0]?.content?.parts[0]?.text) {
         setAiAnalysis(data.candidates[0].content.parts[0].text);
       } else {
-        setAiAnalysis(detailedFallbackTrace);
+        setAiAnalysis(detailedTraceText);
       }
     } catch (err) {
-      setAiAnalysis(detailedFallbackTrace);
+      setAiAnalysis(detailedTraceText);
     } finally {
       setAiLoading(false);
       setLoading(false);
@@ -439,7 +556,7 @@ export default function OptilensCore() {
               {loading || aiLoading ? (
                 <>
                   <RefreshCw className="w-5 h-5 animate-spin" />
-                  <span>Analyzing Code & Generating Scaled Quiz...</span>
+                  <span>Analyzing Code & Generating Quiz...</span>
                 </>
               ) : (
                 <>
@@ -604,7 +721,7 @@ export default function OptilensCore() {
           <div className="border-t border-sky-200/80 pt-5">
             <div className="flex justify-between items-center mb-3">
               <h2 className="text-xs font-bold uppercase tracking-wider text-amber-700 flex items-center gap-2">
-                <Trophy className="w-4 h-4 text-amber-500" /> Dynamic Concept Quiz ({quizList.length} Custom Questions Generated)
+                <Trophy className="w-4 h-4 text-amber-500" /> Dynamic Concept Quiz ({quizList.length} Code-Specific Questions)
               </h2>
               {quizSubmitted && (
                 <button
@@ -619,7 +736,7 @@ export default function OptilensCore() {
             <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 text-slate-200">
               {quizLoading ? (
                 <div className="flex items-center justify-center py-6 gap-2 text-sky-400 text-xs font-medium">
-                  <RefreshCw className="w-4 h-4 animate-spin" /> Generating dynamic code-specific quiz...
+                  <RefreshCw className="w-4 h-4 animate-spin" /> Extracting C++ variables and building randomized code quiz...
                 </div>
               ) : quizList.length > 0 ? (
                 <div className="space-y-4">
