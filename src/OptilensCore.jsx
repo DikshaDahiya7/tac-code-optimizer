@@ -141,7 +141,7 @@ export default function OptilensCore() {
     processCode(code);
   }, [code]);
 
-  // Concept & TAC Breakdown Based Quiz Generation (Synced Strictly to Latest Input Code)
+  // Scalable Concept & TAC Breakdown Based Quiz Generation
   const fetchConceptQuizForCurrentCode = async (targetCode) => {
     setQuizLoading(true);
     setSelectedAnswers({});
@@ -149,6 +149,10 @@ export default function OptilensCore() {
     setCurrentQuizIndex(0);
     setScore(0);
     setShowModal(false);
+
+    // Dynamic question count determination (between 5 and 10 based on lines & expressions)
+    const lineCount = targetCode.split('\n').filter(l => l.trim().length > 0).length;
+    const targetQuestionCount = Math.min(10, Math.max(5, Math.floor(lineCount * 1.2)));
 
     const fallbackQuizList = [
       {
@@ -192,7 +196,7 @@ export default function OptilensCore() {
     }
 
     try {
-      const uniqueTimestamp = Date.now();
+      const cacheBuster = `${Date.now()}_${Math.random().toString(36).substring(7)}`;
       const response = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
         {
@@ -203,7 +207,7 @@ export default function OptilensCore() {
               {
                 parts: [
                   {
-                    text: `Analyze this EXACT C++ code snippet (Timestamp: ${uniqueTimestamp}):\n\n\`\`\`cpp\n${targetCode}\n\`\`\`\n\nGenerate conceptual multiple-choice quiz questions specifically tailored to test and clarify how THIS EXACT CODE is processed into Three-Address Code (TAC), Quadruples/Triples, and optimized (Constant Folding, Dead Code, Copy Propagation).\n\nCRITICAL REQUIREMENTS:\n1. Questions MUST reference specific variable names, expressions, and values from THIS exact C++ code snippet.\n2. Do NOT count code lines to decide question count. Instead, generate 1 question for each distinct operation/concept in this code's TAC breakdown (Minimum 5 questions, Maximum 10 questions).\n3. All questions, options, and explanations MUST BE IN ENGLISH ONLY.\n4. Return ONLY valid JSON matching this format:\n{\n  "quiz": [\n    {\n      "question": "English question specifically referencing variables/values in this C++ code",\n      "options": ["Option A", "Option B", "Option C", "Option D"],\n      "correctIndex": 0,\n      "explanation": "Clear explanation of the concept for this code."\n    }\n  ]\n}`
+                    text: `Analyze this EXACT C++ code snippet (Request ID: ${cacheBuster}):\n\n\`\`\`cpp\n${targetCode}\n\`\`\`\n\nTask: Generate exactly ${targetQuestionCount} conceptual multiple-choice quiz questions specifically tailored to test and clarify how THIS EXACT CODE is processed into Three-Address Code (TAC), Quadruples/Triples, and optimized (Constant Folding, Dead Code Elimination, Copy Propagation, Common Subexpressions).\n\nCRITICAL INSTRUCTIONS:\n1. Questions MUST explicitly reference exact variable names, values, and statement lines present in this provided C++ code.\n2. Scale the question count to produce exactly ${targetQuestionCount} distinct questions covering every variable transformation, intermediate temporary variable, and pass.\n3. All questions, options, and explanations MUST BE IN ENGLISH ONLY.\n4. Return ONLY valid JSON matching this exact structure without markdown code fences:\n{\n  "quiz": [\n    {\n      "question": "English question specifically testing variables/values in this C++ code",\n      "options": ["Option A", "Option B", "Option C", "Option D"],\n      "correctIndex": 0,\n      "explanation": "Clear explanation of the concept for this code."\n    }\n  ]\n}`
                   }
                 ]
               }
@@ -218,7 +222,7 @@ export default function OptilensCore() {
         const cleanedText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
         const parsed = JSON.parse(cleanedText);
         if (parsed.quiz && Array.isArray(parsed.quiz) && parsed.quiz.length >= 5) {
-          setQuizList(parsed.quiz.slice(0, 10));
+          setQuizList(parsed.quiz);
         } else {
           setQuizList(fallbackQuizList);
         }
@@ -241,15 +245,17 @@ export default function OptilensCore() {
 
     const fallbackAnalysis = `🤖 Gemini Dynamic Code Analysis:
 
-1. Intermediate Representation (TAC):
-   • Parsed raw C++ statements into simplified Three-Address Code instructions.
+1. Intermediate Representation (TAC) Breakdown:
+   • Lowered source statements into standardized Three-Address Code (TAC) with temporary registers.
 
-2. Optimization Passes:
-   • Constant Expressions detected and evaluated at compile time.
-   • Unused variable stores identified and removed via Dead Code Elimination.
+2. LLVM Pass Analysis:
+   • Constant Folding: Static mathematical calculations evaluated at compile time.
+   • Dead Code Elimination: Unreferenced store operations safely stripped out.
+   • Copy Propagation: Assignment chains replaced with direct values.
 
-3. Execution Efficiency:
-   • Standardized IR state reduces overall instruction load for target code generation.`;
+3. Representation Structures:
+   • Quadruples: Explicit (Op, Arg1, Arg2, Result) entries generated.
+   • Triples: Memory-optimized indirect reference tuples created.`;
 
     if (!GEMINI_API_KEY) {
       setTimeout(() => {
@@ -271,10 +277,7 @@ export default function OptilensCore() {
               {
                 parts: [
                   {
-                    text: `Analyze this C++ source code and its IR/TAC representation in simple, clear English. Explain step-by-step:
-1. Intermediate Representation (TAC) transformation.
-2. Constant Folding and Copy Propagation performed on specific variables.
-3. Dead Code Elimination applied.\n\nCode:\n${code}`
+                    text: `Analyze this C++ source code in thorough, step-by-step detail using simple English:\n\n\`\`\`cpp\n${code}\n\`\`\`\n\nProvide a detailed analysis covering:\n1. LINE-BY-LINE TAC CONVERSION: Explain how each statement is converted to Three-Address Code (TAC) and why temporary variables (t1, t2...) are created.\n2. OPTIMIZATION PASSES DETAILED: Detail exactly which variables undergo Constant Folding, Copy Propagation, and Dead Code Elimination.\n3. QUADRUPLES & TRIPLES STRUCTURE: Explain how arguments and results are mapped into Quadruple/Triple tables.`
                   }
                 ]
               }
@@ -395,7 +398,7 @@ export default function OptilensCore() {
               {loading || aiLoading ? (
                 <>
                   <RefreshCw className="w-5 h-5 animate-spin" />
-                  <span>Analyzing Code & Generating Quiz...</span>
+                  <span>Analyzing Code & Generating Scaled Quiz...</span>
                 </>
               ) : (
                 <>
@@ -534,14 +537,14 @@ export default function OptilensCore() {
         <div className="bg-white/90 border border-sky-200/80 rounded-2xl p-6 shadow-sm space-y-6">
           <div>
             <h2 className="text-xs font-bold uppercase tracking-wider text-sky-900 flex items-center gap-2 mb-3">
-              <Sparkles className="w-4 h-4 text-amber-500" /> Smart Logic Trace & Detailed Concept Analysis
+              <Sparkles className="w-4 h-4 text-amber-500" /> Detailed Smart Logic Trace & Compiler Breakdown
             </h2>
 
-            <div className="bg-sky-50/60 border border-sky-200 rounded-xl p-5 min-h-[100px]">
+            <div className="bg-sky-50/60 border border-sky-200 rounded-xl p-5 min-h-[120px]">
               {aiLoading ? (
                 <div className="flex items-center gap-3 text-sky-800 text-sm font-medium">
                   <RefreshCw className="w-4 h-4 animate-spin text-sky-600" />
-                  <span>Gemini 2.5 Flash is analyzing your C++ code dynamic IR...</span>
+                  <span>Gemini 2.5 Flash is performing deep line-by-line IR trace analysis...</span>
                 </div>
               ) : aiAnalysis ? (
                 <div className="text-sm text-slate-800 whitespace-pre-line leading-relaxed font-sans">
@@ -560,7 +563,7 @@ export default function OptilensCore() {
           <div className="border-t border-sky-200/80 pt-5">
             <div className="flex justify-between items-center mb-3">
               <h2 className="text-xs font-bold uppercase tracking-wider text-amber-700 flex items-center gap-2">
-                <Trophy className="w-4 h-4 text-amber-500" /> Dynamic Concept Quiz ({quizList.length} Questions Created for This Code)
+                <Trophy className="w-4 h-4 text-amber-500" /> Dynamic Concept Quiz ({quizList.length} Custom Questions Generated)
               </h2>
               {quizSubmitted && (
                 <button
@@ -575,7 +578,7 @@ export default function OptilensCore() {
             <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 text-slate-200">
               {quizLoading ? (
                 <div className="flex items-center justify-center py-6 gap-2 text-sky-400 text-xs font-medium">
-                  <RefreshCw className="w-4 h-4 animate-spin" /> Generating concept breakdown quiz based on your new code...
+                  <RefreshCw className="w-4 h-4 animate-spin" /> Generating dynamically scaled ({quizList.length || '5-10'}) concept questions...
                 </div>
               ) : quizList.length > 0 ? (
                 <div className="space-y-4">
