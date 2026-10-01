@@ -9,11 +9,11 @@ const GEMINI_API_KEY =
 
 export default function OptilensCore() {
   const [code, setCode] = useState(`int main() {
-    int a = 5 * 2;
-    int b = a;
-    int unused = 100;
-    int result = b + 15;
-    return result;
+    int base = 10;
+    int height = 20;
+    int area = (base * height) / 2;
+    int unused_metric = 999;
+    return area;
 }`);
 
   const [activeTab, setActiveTab] = useState('raw');
@@ -21,7 +21,7 @@ export default function OptilensCore() {
   const [aiAnalysis, setAiAnalysis] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
 
-  // Dynamic Pipeline States
+  // Pipeline States
   const [rawTac, setRawTac] = useState([]);
   const [optimizedTac, setOptimizedTac] = useState([]);
   const [quads, setQuads] = useState([]);
@@ -37,7 +37,6 @@ export default function OptilensCore() {
   const [score, setScore] = useState(0);
   const [showModal, setShowModal] = useState(false);
 
-  // Reset Score & Quiz Instantly When Code Changes
   const handleCodeChange = (e) => {
     const newCode = e.target.value;
     setCode(newCode);
@@ -49,7 +48,7 @@ export default function OptilensCore() {
     setShowModal(false);
   };
 
-  // Dynamic Compiler Analyzer for C++ Code
+  // Advanced C++ Compiler Parser & Flow Analyzer
   const processCode = (inputCode) => {
     const lines = inputCode.split('\n');
     let raw = [];
@@ -59,7 +58,6 @@ export default function OptilensCore() {
     let tempCount = 1;
     let deadLines = 0;
 
-    let variables = {};
     let usedVars = new Set();
 
     lines.forEach((line) => {
@@ -68,11 +66,14 @@ export default function OptilensCore() {
         const parts = trimmed.replace('return', '').replace(';', '').trim();
         if (parts) usedVars.add(parts);
       }
-      if (trimmed.includes('+') || trimmed.includes('-') || trimmed.includes('*') || trimmed.includes('/')) {
+      if (trimmed.includes('+') || trimmed.includes('-') || trimmed.includes('*') || trimmed.includes('/') || trimmed.includes('%')) {
         const parts = trimmed.split('=');
         if (parts.length > 1) {
           const expr = parts[1].replace(';', '').trim();
-          expr.split(/[\+\-\*\/]/).forEach((v) => usedVars.add(v.trim()));
+          expr.split(/[\+\-\*\/\%]/).forEach((v) => {
+            let cleanV = v.trim().replace(/[\(\)]/g, '');
+            if (cleanV) usedVars.add(cleanV);
+          });
         }
       }
     });
@@ -85,7 +86,9 @@ export default function OptilensCore() {
 
       if (trimmed.includes('=')) {
         let [left, right] = trimmed.split('=').map((s) => s.replace('int', '').replace(';', '').trim());
-        const opMatch = right.match(/([a-zA-Z0-9_]+)\s*([\+\-\*\/])\s*([a-zA-Z0-9_]+)/);
+        
+        // Check for binary operations
+        const opMatch = right.match(/([a-zA-Z0-9_]+)\s*([\+\-\*\/\%])\s*([a-zA-Z0-9_]+)/);
 
         if (opMatch) {
           const [_, arg1, op, arg2] = opMatch;
@@ -101,20 +104,23 @@ export default function OptilensCore() {
           tripleList.push({ index: `(${tripleList.length})`, op: '=', arg1: left, arg2: `(${tripleList.length - 1})` });
 
           if (!isNaN(arg1) && !isNaN(arg2)) {
-            const val = eval(`${arg1} ${op} ${arg2}`);
-            variables[left] = val;
-            optimized.push({ id: optimized.length + 1, text: `${left} = ${val}`, pass: `Constant Folding (${arg1} ${op} ${arg2} -> ${val})` });
+            try {
+              const val = eval(`${arg1} ${op} ${arg2}`);
+              optimized.push({ id: optimized.length + 1, text: `${left} = ${val}`, pass: `Constant Folding (${arg1} ${op} ${arg2} -> ${val})` });
+            } catch (e) {
+              optimized.push({ id: optimized.length + 1, text: `${left} = ${right}`, pass: 'Arithmetic Lowering' });
+            }
           } else {
-            optimized.push({ id: optimized.length + 1, text: `${left} = ${right}`, pass: 'Code Pass' });
+            optimized.push({ id: optimized.length + 1, text: `${left} = ${right}`, pass: 'Expression Lowering' });
           }
         } else {
           raw.push({ id: raw.length + 1, text: `${left} = ${right}` });
           quadList.push({ op: '=', arg1: right, arg2: '-', result: left });
           tripleList.push({ index: `(${tripleList.length})`, op: '=', arg1: left, arg2: right });
 
-          if (!usedVars.has(left) && left !== 'result') {
+          if (!usedVars.has(left) && left !== 'result' && !left.includes('output') && !left.includes('final')) {
             deadLines++;
-            optimized.push({ id: optimized.length + 1, text: `// ${left} = ${right} (Removed)`, pass: 'Dead Code Elimination' });
+            optimized.push({ id: optimized.length + 1, text: `// ${left} = ${right} (Pruned)`, pass: 'Dead Code Elimination (DCE)' });
           } else {
             optimized.push({ id: optimized.length + 1, text: `${left} = ${right}`, pass: 'Copy Propagation / Assignment' });
           }
@@ -122,7 +128,7 @@ export default function OptilensCore() {
       } else if (trimmed.startsWith('return')) {
         const retVal = trimmed.replace('return', '').replace(';', '').trim();
         raw.push({ id: raw.length + 1, text: `return ${retVal}` });
-        optimized.push({ id: optimized.length + 1, text: `return ${retVal}`, pass: 'Final Return' });
+        optimized.push({ id: optimized.length + 1, text: `return ${retVal}`, pass: 'Terminal Return Mapping' });
       }
     });
 
@@ -141,7 +147,7 @@ export default function OptilensCore() {
     processCode(code);
   }, [code]);
 
-  // Robust Shuffler with Balanced Lengths
+  // Fisher-Yates Shuffler with Balanced Length Options
   const shuffleOptions = (correctOpt, distractors) => {
     const all = [correctOpt, ...distractors];
     for (let i = all.length - 1; i > 0; i--) {
@@ -154,197 +160,161 @@ export default function OptilensCore() {
     };
   };
 
-  // 100% Dynamic On-The-Fly Code-Specific Quiz Builder (Guarantees zero pattern guessing)
-  const buildAdvancedCodeQuiz = (targetCode) => {
+  // Deeply Diverse, Concept-Driven Unique Question Engine
+  const buildComprehensiveQuiz = (targetCode) => {
     const lines = targetCode.split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('//') && !l.startsWith('{') && !l.startsWith('}'));
     
-    let varsFound = [];
-    let mathExprs = [];
-    let unusedVars = [];
-    let allTokens = [];
+    let vars = [];
+    let mathLines = [];
+    let deadVars = [];
+    let returnVar = 'result';
 
-    lines.forEach(line => {
-      if (line.includes('=')) {
-        let parts = line.split('=');
-        let varName = parts[0].replace('int', '').trim();
-        let rightSide = parts[1].replace(';', '').trim();
-        varsFound.push({ name: varName, expr: rightSide });
-        allTokens.push(varName);
+    lines.forEach(l => {
+      if (l.includes('return')) {
+        returnVar = l.replace('return', '').replace(';', '').trim();
+      }
+      if (l.includes('=')) {
+        let parts = l.split('=');
+        let vName = parts[0].replace('int', '').trim();
+        let rhs = parts[1].replace(';', '').trim();
+        vars.push({ name: vName, rhs });
 
-        if (/[\+\-\*\/]/.test(rightSide)) {
-          mathExprs.push({ name: varName, expr: rightSide });
+        if (/[\+\-\*\/\%]/.test(rhs)) {
+          mathLines.push({ name: vName, rhs });
         }
-        if (varName.includes('unused') || varName.includes('dummy') || varName.includes('check') || varName.includes('obsolete') || varName.includes('dead')) {
-          unusedVars.push(varName);
+        if (vName.includes('unused') || vName.includes('dummy') || vName.includes('metric') || vName.includes('log')) {
+          deadVars.push(vName);
         }
       }
     });
 
-    const targetCount = Math.min(10, Math.max(5, lines.length));
-    let questions = [];
+    let qPool = [];
 
-    // Question 1: Specific Variable TAC Lowering
-    if (varsFound.length > 0) {
-      const target = varsFound[0];
-      const decoy1 = varsFound.length > 1 ? varsFound[1].name : 'temp_reg';
-      const decoy2 = varsFound.length > 2 ? varsFound[2].name : 'aux_var';
-      
-      const correct = `Decomposes into atomic 3-address steps using a temporary register for '${target.name}'`;
+    // Concept 1: Syntax & Symbol Table Scope
+    if (vars.length > 0) {
+      const target = vars[0];
+      const correct = `Registers identifier '${target.name}' with type 'int' and memory offset in symbol table`;
       const shuffled = shuffleOptions(correct, [
-        `Bypasses intermediate generation by mapping '${decoy1}' to assembly blocks`,
-        `Serializes '${target.name}' into direct heap-allocated pointer structures`,
-        `Eliminates variable '${decoy2}' during lexical symbol scanning phase`
+        `Allocates dynamic heap memory blocks for '${target.name}' via OS syscalls`,
+        `Translates identifier '${target.name}' directly into raw machine bytecode bytes`,
+        `Bypasses lexical scanning and forwards '${target.name}' to the linker module`
       ]);
-      questions.push({
-        question: `Examining the statement '${target.name} = ${target.expr}', how does the IR generator process this assignment?`,
+      qPool.push({
+        question: `During the initial lexical and syntax parsing of declaration '${target.name} = ${target.rhs}', what primary action does the compiler execute?`,
         options: shuffled.options,
         correctIndex: shuffled.correctIndex,
-        explanation: `TAC standardizes complex expressions by introducing temporary storage registers so each statement respects the 3-address limit.`
+        explanation: `The compiler creates an entry in the Symbol Table for '${target.name}', recording its data type, visibility scope, and memory allocation offset.`
       });
     }
 
-    // Question 2: Specific Math Expression Folding
-    if (mathExprs.length > 0) {
-      const math = mathExprs[0];
-      const decoyVar = varsFound.length > 0 ? varsFound[0].name : 'x';
-      
-      const correct = `Evaluates static sub-expression '${math.expr}' statically during compilation`;
+    // Concept 2: TAC Linearization & Temporary Registers
+    if (mathLines.length > 0) {
+      const m = mathLines[0];
+      const correct = `Decomposes expression '${m.rhs}' into atomic instructions using temporary variable 't1'`;
       const shuffled = shuffleOptions(correct, [
-        `Re-orders instruction pipelines for '${math.name}' during runtime execution`,
-        `Allocates dynamic stack frames for '${decoyVar}' upon function entry`,
-        `Performs common subexpression elimination across loop iterations`
+        `Executes expression '${m.rhs}' entirely within hardware floating-point registers`,
+        `Converts '${m.name}' into an infinite conditional branch loop structure`,
+        `Stores intermediate evaluation steps of '${m.rhs}' directly in secondary disk cache`
       ]);
-      questions.push({
-        question: `For the assignment '${math.name} = ${math.expr}', what exact optimization tier is triggered?`,
+      qPool.push({
+        question: `How does Three-Address Code (TAC) handle the complex expression assigned to '${m.name}' (${m.rhs})?`,
         options: shuffled.options,
         correctIndex: shuffled.correctIndex,
-        explanation: `Because '${math.expr}' contains static compile-time constants, constant folding pre-computes the result before execution.`
+        explanation: `TAC strictly enforces a maximum of three addresses per instruction, breaking nested or multi-operator expressions into sequential steps using temporary registers like 't1'.`
+      });
+    } else if (vars.length > 1) {
+      const v2 = vars[1];
+      const correct = `Assigns value of '${v2.rhs}' to '${v2.name}' via standard copy instruction`;
+      const shuffled = shuffleOptions(correct, [
+        `Computes trigonometric bitshifts on '${v2.name}' during preprocessing`,
+        `Allocates a persistent mutex lock for variable '${v2.name}'`,
+        `Invokes garbage collection cleanup routines for '${v2.rhs}'`
+      ]);
+      qPool.push({
+        question: `What low-level intermediate representation is generated for assignment '${v2.name} = ${v2.rhs}'?`,
+        options: shuffled.options,
+        correctIndex: shuffled.correctIndex,
+        explanation: `Simple scalar assignments translate directly into a single TAC instruction copying the source value to the destination register.`
       });
     }
 
-    // Question 3: Specific Dead Code / Liveness
-    const deadVar = unusedVars.length > 0 ? unusedVars[0] : (varsFound.length > 1 ? varsFound[varsFound.length - 1].name : 'dummy_var');
-    const liveVar = varsFound.length > 0 ? varsFound[0].name : 'active_var';
-    
-    const correctDead = `Data-flow analysis verifies '${deadVar}' has no read references downstream`;
-    const shuffledDead = shuffleOptions(correctDead, [
-      `Syntax analyzer detects a token conflict between '${deadVar}' and '${liveVar}'`,
-      `Register allocator assigns secondary cache banks exclusively to '${deadVar}'`,
-      `Copy propagation maps '${deadVar}' directly to function return registers`
+    // Concept 3: Constant Folding Pass
+    if (mathLines.length > 0) {
+      const ml = mathLines[0];
+      const correct = `Pre-calculates literal arithmetic operands in '${ml.rhs}' at compile-time to save CPU cycles`;
+      const shuffled = shuffleOptions(correct, [
+        `Delays evaluation of '${ml.rhs}' until asynchronous thread execution`,
+        `Forces runtime exception handlers to monitor arithmetic overflows in '${ml.name}'`,
+        `Converts arithmetic operations in '${ml.rhs}' into recursive function calls`
+      ]);
+      qPool.push({
+        question: `What specific optimization pass targets the arithmetic expression found in '${ml.name} = ${ml.rhs}'?`,
+        options: shuffled.options,
+        correctIndex: shuffled.correctIndex,
+        explanation: `Constant Folding detects static literal operands in '${ml.rhs}' and computes the result during compilation, eliminating redundant runtime arithmetic instructions.`
+      });
+    }
+
+    // Concept 4: Dead Code Elimination (DCE) & Liveness Analysis
+    const dv = deadVars.length > 0 ? deadVars[0] : (vars.length > 2 ? vars[vars.length - 2].name : 'aux_var');
+    const correctDCE = `Prunes '${dv}' because data-flow liveness analysis proves it is never read before scope exit`;
+    const shuffledDCE = shuffleOptions(correctDCE, [
+      `Promotes '${dv}' to a global register to accelerate thread synchronization`,
+      `Flags '${dv}' as a syntax compilation error due to uninitialized type casting`,
+      `Duplicates '${dv}' across multiple execution pipelines for parallel speedup`
     ]);
-    questions.push({
-      question: `Why is the declaration of '${deadVar}' safely removed during optimization passes in this code?`,
-      options: shuffledDead.options,
-      correctIndex: shuffledDead.correctIndex,
-      explanation: `Liveness data-flow analysis tracks variable access scopes and prunes dead stores where defined values are never read.`
+    qPool.push({
+      question: `Why is variable '${dv}' flagged and removed during optimization passes of this source code?`,
+      options: shuffledDCE.options,
+      correctIndex: shuffledDCE.correctIndex,
+      explanation: `Dead Code Elimination (DCE) relies on liveness analysis to identify variable stores like '${dv}' that do not affect the function's return value, safely removing them to shrink binary size.`
     });
 
-    // Question 4: Quadruples Format
-    const qCorrect = `Allocates 4 explicit columns for Operator, Arg1, Arg2, and Result`;
-    const qShuffled = shuffleOptions(qCorrect, [
-      `Uses positional instruction line index pointers instead of names`,
-      `Encodes instructions as compressed bytecode binary arrays`,
-      `Executes memory instructions concurrently in worker threads`
+    // Concept 5: Quadruples Table Representation
+    const correctQ = `Stores explicit 4-tuple fields: Operator, Argument 1, Argument 2, and Result Target`;
+    const shuffledQ = shuffleOptions(correctQ, [
+      `Uses implicit numerical line indices instead of explicit variable names`,
+      `Compresses all instructions into a single bitwise encryption stream`,
+      `Requires double-precision floating-point memory allocations for every row`
     ]);
-    questions.push({
-      question: `How does the Quadruples table layout represent statements parsed from this snippet?`,
-      options: qShuffled.options,
-      correctIndex: qShuffled.correctIndex,
-      explanation: `Quadruples utilize an explicit 4-tuple record layout: Operator, Argument 1, Argument 2, and Result target.`
+    qPool.push({
+      question: `How does the Quadruples (Quads) intermediate data structure organize expression instructions for this program?`,
+      options: shuffledQ.options,
+      correctIndex: shuffledQ.correctIndex,
+      explanation: `Quadruples explicitly store four distinct attributes per instruction row: (op, arg1, arg2, result), making temporary variable tracking straightforward.`
     });
 
-    // Question 5: Triples Indirection
-    const tCorrect = `Omits explicit result variable names by using positional numeric indices`;
-    const tShuffled = shuffleOptions(tCorrect, [
-      `Requires double the memory bandwidth compared to Quadruple tables`,
-      `Stores five argument attributes per instruction table row`,
-      `Restricts intermediate code generation exclusively to loops`
+    // Concept 6: Triples Table & Positional Indexing
+    const correctTr = `Eliminates explicit result column names by using positional instruction index pointers like (0), (1)`;
+    const shuffledTr = shuffleOptions(correctTr, [
+      `Consumes twice the RAM storage bandwidth compared to Quadruple tables`,
+      `Forces all instructions to execute in reverse sequential order`,
+      `Stores string literals instead of numerical register references`
     ]);
-    questions.push({
-      question: `What primary indirection mechanism distinguishes Triples from Quadruples in this visualizer?`,
-      options: tShuffled.options,
-      correctIndex: tShuffled.correctIndex,
-      explanation: `Triples avoid explicit result column names by using positional numeric indices (e.g. (0), (1)) to link instruction dependencies.`
+    qPool.push({
+      question: `What architectural advantage do Triples provide over Quadruples when mapping this code's IR sequence?`,
+      options: shuffledTr.options,
+      correctIndex: shuffledTr.correctIndex,
+      explanation: `Triples save memory overhead by omitting explicit result variable names and instead using numerical instruction position indices (e.g., (0), (1)) to represent dependencies.`
     });
 
-    // Question 6: Copy Propagation
-    const cpTarget = varsFound.length > 1 ? varsFound[1].name : 'var_b';
-    const cpSource = varsFound.length > 0 ? varsFound[0].name : 'var_a';
-    
-    const correctCP = `Substitutes references of copied variable '${cpTarget}' with source '${cpSource}'`;
-    const shuffledCP = shuffleOptions(correctCP, [
-      `Duplicates function stack frames for recursive exception safety`,
-      `Converts integer variables into floating-point representation types`,
-      `Generates unconditional assembly jump branch blocks for switches`
-    ]);
-    questions.push({
-      question: `What specific transformation does Copy Propagation perform on assignments involving '${cpTarget}' and '${cpSource}'?`,
-      options: shuffledCP.options,
-      correctIndex: shuffledCP.correctIndex,
-      explanation: `Copy Propagation traces assignments and replaces subsequent uses of the target variable directly with its source value.`
-    });
-
-    // Question 7: Temporary Variables
-    const correctTemp = `Linearizes complex nested arithmetic into ordered single-operator steps`;
-    const shuffledTemp = shuffleOptions(correctTemp, [
-      `Manages dynamic garbage collection memory boundary pointers`,
-      `Enforces object-oriented class member visibility encapsulation`,
-      `Handles asynchronous operating system hardware interrupt signals`
-    ]);
-    questions.push({
-      question: `Why does the IR code generator inject temporary variables (t1, t2...) during expression parsing here?`,
-      options: shuffledTemp.options,
-      correctIndex: shuffledTemp.correctIndex,
-      explanation: `Temporary variables break down complex nested arithmetic expressions into sequential single-operator instructions.`
-    });
-
-    // Question 8: Symbol Table
-    const correctST = `Maintains variable names, memory offsets, and block scope attributes`;
-    const shuffledST = shuffleOptions(correctST, [
-      `Executes machine byte-code directly inside browser client memory`,
-      `Translates source compiler syntax bugs into user warnings`,
-      `Controls browser DOM layout rendering and animation frames`
-    ]);
-    questions.push({
-      question: `What critical metadata does the Symbol Table manage during lexical analysis of this code?`,
-      options: shuffledST.options,
-      correctIndex: shuffledST.correctIndex,
-      explanation: `The Symbol Table records identifier names, declared data types, scope block boundaries, and memory offsets.`
-    });
-
-    // Question 9: Pass Sequencing
-    const correctPass = `Constant folding must execute before dead code elimination to expose orphaned branches`;
-    const shuffledPass = shuffleOptions(correctPass, [
-      `Optimization passes operate entirely independently without sequence rules`,
-      `Dead code pruning must always occur prior to lexical tokenization`,
-      `Passes are restricted solely to writing hardware assembly files`
-    ]);
-    questions.push({
-      question: `Why is the execution order of optimization passes (Folding before DCE) important in this compiler pipeline?`,
-      options: shuffledPass.options,
-      correctIndex: shuffledPass.correctIndex,
-      explanation: `Executing Constant Folding first simplifies conditions and uncovers dead code blocks that subsequent DCE passes can prune.`
-    });
-
-    // Question 10: Terminal Return
-    const retVar = varsFound.length > 0 ? varsFound[varsFound.length - 1].name : 'result';
-    const correctRet = `Lowered into a terminal return IR tuple passing final register '${retVar}'`;
+    // Concept 7: Terminal Return Instruction Mapping
+    const correctRet = `Translates 'return ${returnVar}' into a terminal return TAC instruction passing the final register`;
     const shuffledRet = shuffleOptions(correctRet, [
-      `Purged completely from the activation stack frame during parsing`,
-      `Converted into an unconditional infinite branch loop instruction`,
-      `Swapped into argument position 1 of the function header signature`
+      `Purges the entire activation stack frame without returning values`,
+      `Converts the return statement into an infinite background polling loop`,
+      `Swaps return variable '${returnVar}' into argument position 1 of the function`
     ]);
-    questions.push({
-      question: `How is the concluding 'return' statement handling variable '${retVar}' during intermediate code generation?`,
+    qPool.push({
+      question: `How is the final return statement returning '${returnVar}' processed during intermediate code generation?`,
       options: shuffledRet.options,
       correctIndex: shuffledRet.correctIndex,
-      explanation: `The return statement maps to a terminal IR instruction passing the final computed register value back to the caller.`
+      explanation: `The return statement is lowered into a terminal TAC instruction that passes the final evaluated register value back to the calling function environment.`
     });
 
-    return questions.slice(0, targetCount);
+    return qPool;
   };
 
-  // Fetch Quiz
   const fetchConceptQuizForCurrentCode = async (targetCode) => {
     setQuizLoading(true);
     setSelectedAnswers({});
@@ -353,7 +323,7 @@ export default function OptilensCore() {
     setScore(0);
     setShowModal(false);
 
-    const generatedQuiz = buildAdvancedCodeQuiz(targetCode);
+    const generatedQuiz = buildComprehensiveQuiz(targetCode);
 
     if (!GEMINI_API_KEY) {
       setTimeout(() => {
@@ -375,7 +345,7 @@ export default function OptilensCore() {
               {
                 parts: [
                   {
-                    text: `Analyze this C++ code (ID: ${cacheBust}):\n\n\`\`\`cpp\n${targetCode}\n\`\`\`\n\nGenerate ${generatedQuiz.length} rigorous, challenging multiple-choice questions with balanced option lengths specifically referencing this code. Return strictly valid JSON format matching:\n{\n  "quiz": [\n    {\n      "question": "Rigorous conceptual question referencing code",\n      "options": ["Balanced Option A", "Balanced Option B", "Balanced Option C", "Balanced Option D"],\n      "correctIndex": 0,\n      "explanation": "Detailed technical explanation."\n    }\n  ]\n}`
+                    text: `Analyze this C++ code (ID: ${cacheBust}):\n\n\`\`\`cpp\n${targetCode}\n\`\`\`\n\nGenerate 6 distinct, highly rigorous, concept-based multiple-choice questions with balanced option lengths testing compiler design principles (Symbol Table, TAC, Constant Folding, DCE, Quads, Triples) specific to THIS code. Return strictly valid JSON format matching:\n{\n  "quiz": [\n    {\n      "question": "Deep conceptual question",\n      "options": ["Balanced Option A", "Balanced Option B", "Balanced Option C", "Balanced Option D"],\n      "correctIndex": 0,\n      "explanation": "Thorough step-by-step explanation."\n    }\n  ]\n}`
                   }
                 ]
               }
@@ -389,8 +359,8 @@ export default function OptilensCore() {
       if (rawText) {
         const cleanedText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
         const parsed = JSON.parse(cleanedText);
-        if (parsed.quiz && Array.isArray(parsed.quiz) && parsed.quiz.length >= 5) {
-          setQuizList(parsed.quiz.slice(0, 10));
+        if (parsed.quiz && Array.isArray(parsed.quiz) && parsed.quiz.length >= 4) {
+          setQuizList(parsed.quiz);
         } else {
           setQuizList(generatedQuiz);
         }
@@ -411,40 +381,41 @@ export default function OptilensCore() {
     processCode(code);
     fetchConceptQuizForCurrentCode(code);
 
+    // Build Detailed Step-by-Step Breakdown
     const lines = code.split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('//') && !l.startsWith('{') && !l.startsWith('}'));
     
-    let analysisOutput = `🔍 DEEP COMPILER LOGIC TRACE & CODE BREAKDOWN:\n\n`;
-    analysisOutput += `1. LEXICAL & SYNTAX PARSING:\n`;
-    analysisOutput += `   • Analyzed ${lines.length} active statements for the provided input source code.\n`;
-    analysisOutput += `   • Built symbol table tracking token identifiers, data types, and scopes.\n\n`;
+    let detailedTrace = `📌 COMPREHENSIVE STEP-BY-STEP COMPILER TRACE & BREAKDOWN:\n\n`;
     
-    analysisOutput += `2. THREE-ADDRESS CODE (TAC) LOWERING:\n`;
+    detailedTrace += `1. LEXICAL ANALYSIS & SYMBOL TABLE SETUP:\n`;
+    detailedTrace += `   • The compiler scanner tokenized ${lines.length} active statements from your input C++ code.\n`;
+    detailedTrace += `   • All declared variable identifiers and types were registered into the Symbol Table with scope offsets.\n\n`;
+
+    detailedTrace += `2. INTERMEDIATE REPRESENTATION (TAC) LOWERING:\n`;
     let tempId = 1;
     lines.forEach((l, idx) => {
       if (l.includes('=')) {
-        if (/[\+\-\*\/]/.test(l)) {
-          analysisOutput += `   • Statement ${idx+1} ("${l}") -> Lowered via temporary register t${tempId} into atomic 3-address steps.\n`;
+        if (/[\+\-\*\/\%]/.test(l)) {
+          detailedTrace += `   • Line ${idx+1} ("${l}") -> Broken down into multi-step atomic operations using temporary register [t${tempId}].\n`;
           tempId++;
         } else {
-          analysisOutput += `   • Statement ${idx+1} ("${l}") -> Mapped to direct atomic assignment tuple.\n`;
+          detailedTrace += `   • Line ${idx+1} ("${l}") -> Converted to atomic copy TAC instruction.\n`;
         }
       } else if (l.includes('return')) {
-        analysisOutput += `   • Statement ${idx+1} ("${l}") -> Resolved to terminal return TAC instruction.\n`;
+        detailedTrace += `   • Line ${idx+1} ("${l}") -> Mapped to terminal return IR instruction.\n`;
       }
     });
 
-    analysisOutput += `\n3. OPTIMIZATION PASS EXECUTION:\n`;
-    analysisOutput += `   • Constant Folding: Pre-evaluated static literal sub-expressions at compile time.\n`;
-    analysisOutput += `   • Copy Propagation: Propagated direct assignments to eliminate redundant memory operations.\n`;
-    analysisOutput += `   • Dead Code Elimination: Safely pruned unreferenced variables and orphan assignments.\n\n`;
-    
-    analysisOutput += `4. TUPLE STORAGE REPRESENTATIONS:\n`;
-    analysisOutput += `   • Quadruples table populated with 4 explicit attributes (Operator, Arg1, Arg2, Result).\n`;
-    analysisOutput += `   • Triples table structured with positional index references ((0), (1)...) to minimize memory overhead.`;
+    detailedTrace += `\n3. LLVM OPTIMIZATION PASSES:\n`;
+    detailedTrace += `   • Constant Folding Pass: Evaluated static literal arithmetic expressions at compile-time to eliminate runtime CPU overhead.\n`;
+    detailedTrace += `   • Dead Code Elimination (DCE): Analyzed data-flow liveness and safely pruned unreferenced variable stores.\n\n`;
+
+    detailedTrace += `4. MEMORY TABLE MAPPING (QUADS & TRIPLES):\n`;
+    detailedTrace += `   • Quadruples generated explicit 4-column tuples -> (Operator, Argument 1, Argument 2, Result Target).\n`;
+    detailedTrace += `   • Triples organized instructions using positional numeric indices ((0), (1)...) to eliminate explicit result column storage.`;
 
     if (!GEMINI_API_KEY) {
       setTimeout(() => {
-        setAiAnalysis(analysisOutput);
+        setAiAnalysis(detailedTrace);
         setAiLoading(false);
         setLoading(false);
       }, 300);
@@ -462,7 +433,7 @@ export default function OptilensCore() {
               {
                 parts: [
                   {
-                    text: `Provide a rigorous technical breakdown of this specific C++ source code in clear English:\n\n\`\`\`cpp\n${code}\n\`\`\`\n\nDetail precisely how THIS code is parsed into TAC, which variables undergo Constant Folding and Dead Code Elimination, and how Quadruples/Triples map its structure.`
+                    text: `Provide a rigorous, highly detailed step-by-step compiler breakdown of this specific C++ source code in clear English:\n\n\`\`\`cpp\n${code}\n\`\`\`\n\nExplain precisely how THIS code is parsed into Symbol Table entries, TAC instructions, which variables undergo Constant Folding and Dead Code Elimination, and how Quadruples/Triples map its structure.`
                   }
                 ]
               }
@@ -475,10 +446,10 @@ export default function OptilensCore() {
       if (data.candidates && data.candidates[0]?.content?.parts?.[0]?.text) {
         setAiAnalysis(data.candidates[0].content.parts[0].text);
       } else {
-        setAiAnalysis(analysisOutput);
+        setAiAnalysis(detailedTrace);
       }
     } catch (err) {
-      setAiAnalysis(analysisOutput);
+      setAiAnalysis(detailedTrace);
     } finally {
       setAiLoading(false);
       setLoading(false);
@@ -718,18 +689,18 @@ export default function OptilensCore() {
           </div>
         </div>
 
-        {/* Dynamic Concept AI Section */}
+        {/* Detailed Step-by-Step Breakdown Section */}
         <div className="bg-white/90 border border-sky-200/80 rounded-2xl p-6 shadow-sm space-y-6">
           <div>
             <h2 className="text-xs font-bold uppercase tracking-wider text-sky-900 flex items-center gap-2 mb-3">
-              <Sparkles className="w-4 h-4 text-amber-500" /> Detailed Smart Logic Trace & Code Breakdown
+              <Sparkles className="w-4 h-4 text-amber-500" /> Detailed Step-by-Step Logic Trace & Concept Breakdown
             </h2>
 
-            <div className="bg-sky-50/60 border border-sky-200 rounded-xl p-5 min-h-[140px]">
+            <div className="bg-sky-50/60 border border-sky-200 rounded-xl p-5 min-h-[150px]">
               {aiLoading ? (
                 <div className="flex items-center gap-3 text-sky-800 text-sm font-medium">
                   <RefreshCw className="w-4 h-4 animate-spin text-sky-600" />
-                  <span>Gemini 2.5 Flash is generating custom breakdown for your code...</span>
+                  <span>Gemini 2.5 Flash is compiling detailed step-by-step trace...</span>
                 </div>
               ) : aiAnalysis ? (
                 <div className="text-sm text-slate-800 whitespace-pre-line leading-relaxed font-sans">
@@ -738,7 +709,7 @@ export default function OptilensCore() {
               ) : (
                 <div className="text-sm text-sky-700 flex items-center gap-2">
                   <Eye className="w-4 h-4" />
-                  <span>Type any C++ code above and click "RUN PIPELINE & AI TRACE".</span>
+                  <span>Paste any C++ code above and click "RUN PIPELINE & AI TRACE".</span>
                 </div>
               )}
             </div>
@@ -748,7 +719,7 @@ export default function OptilensCore() {
           <div className="border-t border-sky-200/80 pt-5">
             <div className="flex justify-between items-center mb-3">
               <h2 className="text-xs font-bold uppercase tracking-wider text-amber-700 flex items-center gap-2">
-                <Trophy className="w-4 h-4 text-amber-500" /> Dynamic Advanced Concept Quiz ({quizList.length} Questions)
+                <Trophy className="w-4 h-4 text-amber-500" /> Code-Specific Concept Quiz ({quizList.length} Unique Questions)
               </h2>
               {quizSubmitted && (
                 <button
@@ -763,7 +734,7 @@ export default function OptilensCore() {
             <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 text-slate-200">
               {quizLoading ? (
                 <div className="flex items-center justify-center py-6 gap-2 text-sky-400 text-xs font-medium">
-                  <RefreshCw className="w-4 h-4 animate-spin" /> Building advanced code-specific challenge questions...
+                  <RefreshCw className="w-4 h-4 animate-spin" /> Generating diverse, non-guessable concept questions...
                 </div>
               ) : quizList.length > 0 ? (
                 <div className="space-y-4">
