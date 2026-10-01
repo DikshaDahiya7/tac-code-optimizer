@@ -145,7 +145,7 @@ export default function OptilensCore() {
     processCode(code);
   }, [code]);
 
-  // Shuffler with Balanced Short Options
+  // Robust Shuffler for Options
   const shuffleOptions = (correctOpt, distractors) => {
     const all = [correctOpt, ...distractors];
     for (let i = all.length - 1; i > 0; i--) {
@@ -158,152 +158,128 @@ export default function OptilensCore() {
     };
   };
 
-  // 100% Dynamic Code-Specific Quiz Engine (Generates fresh questions per input code with short options)
-  const buildDynamicCodeQuiz = (targetCode) => {
+  // 100% Strict Code-Bound Dynamic Question Generator (Zero hardcoding)
+  const buildStrictCodeQuiz = (targetCode) => {
     const lines = targetCode.split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('//') && !l.startsWith('{') && !l.startsWith('}'));
     
-    let vars = [];
+    let allVars = [];
+    let assignments = [];
     let mathExprs = [];
     let deadVars = [];
-    let returnVal = 'result';
+    let retVar = 'result';
 
     lines.forEach(l => {
       if (l.includes('return')) {
-        returnVal = l.replace('return', '').replace(';', '').trim();
+        retVar = l.replace('return', '').replace(';', '').trim();
       }
       if (l.includes('=')) {
         let parts = l.split('=');
         let vName = parts[0].replace('int', '').trim();
         let rhs = parts[1].replace(';', '').trim();
-        vars.push({ name: vName, rhs });
+        allVars.push(vName);
+        assignments.push({ var: vName, rhs });
 
         if (/[\+\-\*\/\%]/.test(rhs)) {
-          mathExprs.push({ name: vName, rhs });
+          mathExprs.push({ var: vName, rhs });
         }
-        if (vName.includes('unused') || vName.includes('dummy') || vName.includes('metric') || vName.includes('log') || vName.includes('obsolete')) {
+        if (vName.includes('unused') || vName.includes('dummy') || vName.includes('metric') || vName.includes('log') || vName.includes('obsolete') || vName.includes('check')) {
           deadVars.push(vName);
         }
       }
     });
 
-    let generatedQuestions = [];
+    let questions = [];
 
-    // Q1: Specific Variable Symbol Table Check
-    if (vars.length > 0) {
-      const target = vars[0];
-      const decoy = vars.length > 1 ? vars[1].name : 'temp_reg';
-      const shuffled = shuffleOptions(`Symbol Table Entry`, [
-        `Register Allocation`,
-        `Heap Memory Block`,
-        `Direct Bytecode`
-      ]);
-      generatedQuestions.push({
-        question: `During the lexical scan of '${target.name} = ${target.rhs}', what core data structure records this identifier's data type and scope?`,
+    // Dynamically generate question 1 based on first assignment variable
+    if (assignments.length > 0) {
+      const a1 = assignments[0];
+      const decoy = assignments.length > 1 ? assignments[1].rhs : '0';
+      const shuffled = shuffleOptions(a1.rhs, [decoy, `${a1.var} * 2`, '0']);
+      questions.push({
+        question: `In the source code, what exact initial literal value or expression is assigned to variable '${a1.var}'?`,
         options: shuffled.options,
         correctIndex: shuffled.correctIndex,
-        explanation: `The Symbol Table stores all declared identifiers like '${target.name}', tracking their data types, scopes, and memory offsets.`
+        explanation: `Looking at the code declaration, variable '${a1.var}' is directly initialized with '${a1.rhs}'.`
       });
     }
 
-    // Q2: Specific Math Expression TAC Lowering
-    if (mathExprs.length > 0) {
-      const math = mathExprs[0];
-      const shuffled = shuffleOptions(`t1 = ${math.rhs}`, [
-        `Direct Register Assignment`,
-        `Stack Pointer Shift`,
-        `Inline Assembly Jump`
-      ]);
-      generatedQuestions.push({
-        question: `For the expression assigned to '${math.name}' (${math.rhs}), what is the exact first Three-Address Code (TAC) instruction generated?`,
-        options: shuffled.options,
-        correctIndex: shuffled.correctIndex,
-        explanation: `TAC strictly limits every instruction to 3 addresses, decomposing '${math.rhs}' using an intermediate temporary register like 't1'.`
-      });
-    } else if (vars.length > 1) {
-      const v2 = vars[1];
-      const shuffled = shuffleOptions(`Copy Assignment (${v2.name} = ${v2.rhs})`, [
-        `Bitwise XOR Operation`,
-        `Pointer Dereference`,
-        `Heap Allocation`
-      ]);
-      generatedQuestions.push({
-        question: `How does intermediate code lowering process the simple scalar assignment '${v2.name} = ${v2.rhs}'?`,
-        options: shuffled.options,
-        correctIndex: shuffled.correctIndex,
-        explanation: `Direct scalar assignments translate into a single atomic copy TAC instruction without requiring temporary variables.`
-      });
-    }
-
-    // Q3: Constant Folding Pass on specific expression
+    // Dynamically generate question 2 based on math expression if present
     if (mathExprs.length > 0) {
       const m = mathExprs[0];
-      const shuffled = shuffleOptions(`Constant Folding`, [
-        `Dead Code Elimination`,
-        `Common Subexpression`,
-        `Loop Unrolling`
-      ]);
-      generatedQuestions.push({
-        question: `Which compiler optimization pass evaluates static literal operands in '${m.name} = ${m.rhs}' prior to runtime execution?`,
+      const altRhs = mathExprs.length > 1 ? mathExprs[1].rhs : 't1 + t2';
+      const shuffled = shuffleOptions(`t1 = ${m.rhs}`, [`t1 = ${altRhs}`, `t1 = ${m.var}`, `t1 = 0`]);
+      questions.push({
+        question: `When lowering complex expression '${m.var} = ${m.rhs}' into Three-Address Code, what is the first generated temporary instruction?`,
         options: shuffled.options,
         correctIndex: shuffled.correctIndex,
-        explanation: `Constant Folding pre-calculates static arithmetic expressions during compilation to remove unnecessary runtime CPU cycles.`
+        explanation: `TAC decomposes '${m.rhs}' into atomic steps by assigning the evaluation to temporary register t1.`
+      });
+    } else if (assignments.length > 1) {
+      const a2 = assignments[1];
+      const shuffled = shuffleOptions(`Copy Assignment`, [`Constant Folding`, `Dead Store`, `Array Lookup`]);
+      questions.push({
+        question: `How is statement '${a2.var} = ${a2.rhs}' classified during intermediate representation lowering?`,
+        options: shuffled.options,
+        correctIndex: shuffled.correctIndex,
+        explanation: `Assignment '${a2.var} = ${a2.rhs}' is a straightforward scalar copy instruction.`
       });
     }
 
-    // Q4: Specific Dead Variable Pruning
-    const dv = deadVars.length > 0 ? deadVars[0] : (vars.length > 2 ? vars[vars.length - 2].name : 'aux_var');
-    const shuffledDCE = shuffleOptions(`Dead Code Elimination (DCE)`, [
-      `Constant Propagation`,
-      `Register Spilling`,
-      `Syntax Tokenization`
-    ]);
-    generatedQuestions.push({
-      question: `Why is variable '${dv}' targeted for removal during optimization passes in this specific program?`,
-      options: shuffledDCE.options,
-      correctIndex: shuffledDCE.correctIndex,
-      explanation: `Liveness data-flow analysis identifies that variable '${dv}' is never read downstream, allowing Dead Code Elimination (DCE) to prune it safely.`
-    });
+    // Dynamically generate question 3 based on dead variables or secondary variables
+    if (deadVars.length > 0) {
+      const dv = deadVars[0];
+      const shuffled = shuffleOptions(`Dead Code Elimination`, [`Constant Folding`, `Copy Propagation`, `Register Allocation`]);
+      questions.push({
+        question: `Which optimization pass removes variable '${dv}' because its stored value is never read downstream?`,
+        options: shuffled.options,
+        correctIndex: shuffled.correctIndex,
+        explanation: `Liveness analysis flags variable '${dv}' as unreferenced, allowing Dead Code Elimination (DCE) to prune it.`
+      });
+    } else if (assignments.length > 2) {
+      const a3 = assignments[2];
+      const shuffled = shuffleOptions(a3.var, [assignments[0].var, retVar, 't1']);
+      questions.push({
+        question: `Which variable is declared immediately after '${assignments[1].var}' in the active source statements?`,
+        options: shuffled.options,
+        correctIndex: shuffled.correctIndex,
+        explanation: `Scanning the code sequence, variable '${a3.var}' follows '${assignments[1].var}'.`
+      });
+    }
 
-    // Q5: Quadruples Table Representation
-    const shuffledQuads = shuffleOptions(`(Op, Arg1, Arg2, Result)`, [
-      `(#, Op, Arg1, Arg2)`,
-      `(Index, Symbol, Type)`,
-      `(Register, Offset, Value)`
-    ]);
-    generatedQuestions.push({
-      question: `What explicit 4-tuple record structure is utilized by Quadruples to store expressions parsed from this code?`,
-      options: shuffledQuads.options,
-      correctIndex: shuffledQuads.correctIndex,
-      explanation: `Quadruples use 4 distinct attributes per instruction row: Operator, Argument 1, Argument 2, and Result target variable.`
-    });
-
-    // Q6: Triples Table Positional Indexing
-    const shuffledTriples = shuffleOptions(`Positional Instruction Index (0, 1...)`, [
-      `Explicit Result Variable Names`,
-      `Dynamic Heap Pointers`,
-      `Hardware Memory Offsets`
-    ]);
-    generatedQuestions.push({
-      question: `How do Triples avoid explicit result variable names to achieve memory efficiency in this IR sequence?`,
-      options: shuffledTriples.options,
-      correctIndex: shuffledTriples.correctIndex,
-      explanation: `Triples use numerical instruction position indices (e.g. (0), (1)) to reference previous intermediate results directly.`
-    });
-
-    // Q7: Terminal Return Variable Mapping
-    const shuffledRet = shuffleOptions(`Terminal Return IR Tuple`, [
-      `Stack Frame Purge`,
-      `Unconditional Jump Loop`,
-      `Global Pointer Swap`
-    ]);
-    generatedQuestions.push({
-      question: `How is the final return statement returning '${returnVal}' handled during intermediate representation generation?`,
+    // Dynamically generate question 4 based on return variable
+    const shuffledRet = shuffleOptions(retVar, [allVars[0] || 'x', 't1', '0']);
+    questions.push({
+      question: `What specific variable or register state does the final terminal 'return' statement evaluate and pass back?`,
       options: shuffledRet.options,
       correctIndex: shuffledRet.correctIndex,
-      explanation: `The return statement maps to a terminal TAC instruction that passes the final evaluated register value back to the caller.`
+      explanation: `The terminal return instruction passes the final computed value of variable '${retVar}' back to the caller.`
     });
 
-    return generatedQuestions;
+    // Dynamically generate question 5 testing Quadruples operands
+    if (mathExprs.length > 0) {
+      const me = mathExprs[0];
+      const parts = me.rhs.split(/[\+\-\*\/\%]/);
+      const opMatch = me.rhs.match(/[\+\-\*\/\%]/);
+      const op = opMatch ? opMatch[0] : '+';
+      const arg1 = parts[0] ? parts[0].trim().replace(/[\(\)]/g, '') : 'arg1';
+      const shuffledQ = shuffleOptions(arg1, [parts[1] ? parts[1].trim().replace(/[\(\)]/g, '') : 'arg2', me.var, 't1']);
+      questions.push({
+        question: `In the Quadruples table row for expression '${me.var} = ${me.rhs}', what is stored as Argument 1 (Arg1)?`,
+        options: shuffledQ.options,
+        correctIndex: shuffledQ.correctIndex,
+        explanation: `The first operand of operator '${op}' in '${me.rhs}' is recorded as Arg1 in the Quadruple tuple.`
+      });
+    } else {
+      const shuffledQ = shuffleOptions('Operator, Arg1, Arg2, Result', ['Index, Op, Arg1, Arg2', 'Var, Type, Offset', 'Line, Token, Scope']);
+      questions.push({
+        question: `What are the exact four columns maintained in the Quadruples table for this code's instructions?`,
+        options: shuffledQ.options,
+        correctIndex: shuffledQ.correctIndex,
+        explanation: `Quadruples explicitly store Operator, Argument 1, Argument 2, and Result target.`
+      });
+    }
+
+    return questions;
   };
 
   const fetchConceptQuizForCurrentCode = async (targetCode) => {
@@ -314,7 +290,7 @@ export default function OptilensCore() {
     setScore(0);
     setShowModal(false);
 
-    const generatedQuiz = buildDynamicCodeQuiz(targetCode);
+    const generatedQuiz = buildStrictCodeQuiz(targetCode);
 
     if (!GEMINI_API_KEY) {
       setTimeout(() => {
@@ -336,7 +312,7 @@ export default function OptilensCore() {
               {
                 parts: [
                   {
-                    text: `Analyze this C++ code (ID: ${cacheBust}):\n\n\`\`\`cpp\n${targetCode}\n\`\`\`\n\nGenerate 6 unique, highly rigorous multiple-choice questions with short, concise options (max 4-5 words per option) specifically referencing THIS code's variables and expressions. Return strictly valid JSON matching:\n{\n  "quiz": [\n    {\n      "question": "Question referencing specific code elements",\n      "options": ["Short Option A", "Short Option B", "Short Option C", "Short Option D"],\n      "correctIndex": 0,\n      "explanation": "Clear step-by-step conceptual explanation."\n    }\n  ]\n}`
+                    text: `Analyze this C++ code strictly (ID: ${cacheBust}):\n\n\`\`\`cpp\n${targetCode}\n\`\`\`\n\nGenerate 5 unique multiple-choice questions with short options (max 3-4 words) that can ONLY be answered by reading THIS specific code's variables and expressions. Return strictly valid JSON matching:\n{\n  "quiz": [\n    {\n      "question": "Question referencing specific code elements",\n      "options": ["Short Option A", "Short Option B", "Short Option C", "Short Option D"],\n      "correctIndex": 0,\n      "explanation": "Clear conceptual explanation."\n    }\n  ]\n}`
                   }
                 ]
               }
@@ -350,7 +326,7 @@ export default function OptilensCore() {
       if (rawText) {
         const cleanedText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
         const parsed = JSON.parse(cleanedText);
-        if (parsed.quiz && Array.isArray(parsed.quiz) && parsed.quiz.length >= 4) {
+        if (parsed.quiz && Array.isArray(parsed.quiz) && parsed.quiz.length >= 3) {
           setQuizList(parsed.quiz);
         } else {
           setQuizList(generatedQuiz);
@@ -372,11 +348,9 @@ export default function OptilensCore() {
     processCode(code);
     fetchConceptQuizForCurrentCode(code);
 
-    // Detailed Step-by-Step Breakdown tailored to the input code
     const lines = code.split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('//') && !l.startsWith('{') && !l.startsWith('}'));
     
     let detailedTrace = `📌 CODE-SPECIFIC STEP-BY-STEP TRACE & BREAKDOWN:\n\n`;
-    
     detailedTrace += `1. LEXICAL ANALYSIS & SYMBOL TABLE:\n`;
     detailedTrace += `   • Scanned exactly ${lines.length} active statements in your input source code.\n`;
     detailedTrace += `   • All user-defined variables were registered into the Symbol Table with type and scope data.\n\n`;
